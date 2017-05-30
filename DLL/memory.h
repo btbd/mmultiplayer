@@ -1,0 +1,207 @@
+#pragma once
+
+#undef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+
+#include <stdio.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
+#include <Windows.h>
+#include <tlhelp32.h>
+#include <Shlwapi.h>
+
+#pragma comment(lib, "Shlwapi.lib")
+
+#define CHAR(a) (*(char *)&a)
+#define SHORT(a) (*(short *)&a)
+#define INT(a) (*(int *)&a)
+#define FLOAT(a) (*(float *)&a)
+#define LONG(a) (*(long *)&a)
+#define DOUBLE(a) (*(double *)&a)
+#define LONGLONG(a) (*(long long *)&a)
+
+#define IsKeyDown(a) (GetAsyncKeyState(a) < 0)
+#define IsKeyUp(a) (!IsKeyDown(a))
+
+enum {
+	D3D9_EXPORT_QUERYINTERFACE = 0,
+	D3D9_EXPORT_ADDREF,
+	D3D9_EXPORT_RELEASE,
+	D3D9_EXPORT_TESTCOOPERATIVELEVEL,
+	D3D9_EXPORT_GETAVAILABLETEXTUREMEM,
+	D3D9_EXPORT_EVICTMANAGEDRESOURCES,
+	D3D9_EXPORT_GETDIRECTD,
+	D3D9_EXPORT_GETDEVICECAPS,
+	D3D9_EXPORT_GETDISPLAYMODE,
+	D3D9_EXPORT_GETCREATIONPARAMETERS,
+	D3D9_EXPORT_SETCURSORPROPERTIES,
+	D3D9_EXPORT_SETCURSORPOSITION,
+	D3D9_EXPORT_SHOWCURSOR,
+	D3D9_EXPORT_CREATEADDITIONALSWAPCHAIN,
+	D3D9_EXPORT_GETSWAPCHAIN,
+	D3D9_EXPORT_GETNUMBEROFSWAPCHAINS,
+	D3D9_EXPORT_RESET,
+	D3D9_EXPORT_PRESENT,
+	D3D9_EXPORT_GETBACKBUFFER,
+	D3D9_EXPORT_GETRASTERSTATUS,
+	D3D9_EXPORT_SETDIALOGBOXMODE,
+	D3D9_EXPORT_SETGAMMARAMP,
+	D3D9_EXPORT_GETGAMMARAMP,
+	D3D9_EXPORT_CREATETEXTURE,
+	D3D9_EXPORT_CREATEVOLUMETEXTURE,
+	D3D9_EXPORT_CREATECUBETEXTURE,
+	D3D9_EXPORT_CREATEVERTEXBUFFER,
+	D3D9_EXPORT_CREATEINDEXBUFFER,
+	D3D9_EXPORT_CREATERENDERTARGET,
+	D3D9_EXPORT_CREATEDEPTHSTENCILSURFACE,
+	D3D9_EXPORT_UPDATESURFACE,
+	D3D9_EXPORT_UPDATETEXTURE,
+	D3D9_EXPORT_GETRENDERTARGETDATA,
+	D3D9_EXPORT_GETFRONTBUFFERDATA,
+	D3D9_EXPORT_STRETCHRECT,
+	D3D9_EXPORT_COLORFILL,
+	D3D9_EXPORT_CREATEOFFSCREENPLAINSURFACE,
+	D3D9_EXPORT_SETRENDERTARGET,
+	D3D9_EXPORT_GETRENDERTARGET,
+	D3D9_EXPORT_SETDEPTHSTENCILSURFACE,
+	D3D9_EXPORT_GETDEPTHSTENCILSURFACE,
+	D3D9_EXPORT_BEGINSCENE,
+	D3D9_EXPORT_ENDSCENE,
+	D3D9_EXPORT_CLEAR,
+	D3D9_EXPORT_SETTRANSFORM,
+	D3D9_EXPORT_GETTRANSFORM,
+	D3D9_EXPORT_MULTIPLYTRANSFORM,
+	D3D9_EXPORT_SETVIEWPORT,
+	D3D9_EXPORT_GETVIEWPORT,
+	D3D9_EXPORT_SETMATERIAL,
+	D3D9_EXPORT_GETMATERIAL,
+	D3D9_EXPORT_SETLIGHT,
+	D3D9_EXPORT_GETLIGHT,
+	D3D9_EXPORT_LIGHTENABLE,
+	D3D9_EXPORT_GETLIGHTENABLE,
+	D3D9_EXPORT_SETCLIPPLANE,
+	D3D9_EXPORT_GETCLIPPLANE,
+	D3D9_EXPORT_SETRENDERSTATE,
+	D3D9_EXPORT_GETRENDERSTATE,
+	D3D9_EXPORT_CREATESTATEBLOCK,
+	D3D9_EXPORT_BEGINSTATEBLOCK,
+	D3D9_EXPORT_ENDSTATEBLOCK,
+	D3D9_EXPORT_SETCLIPSTATUS,
+	D3D9_EXPORT_GETCLIPSTATUS,
+	D3D9_EXPORT_GETTEXTURE,
+	D3D9_EXPORT_SETTEXTURE,
+	D3D9_EXPORT_GETTEXTURESTAGESTATE,
+	D3D9_EXPORT_SETTEXTURESTAGESTATE,
+	D3D9_EXPORT_GETSAMPLERSTATE,
+	D3D9_EXPORT_SETSAMPLERSTATE,
+	D3D9_EXPORT_VALIDATEDEVICE,
+	D3D9_EXPORT_SETPALETTEENTRIES,
+	D3D9_EXPORT_GETPALETTEENTRIES,
+	D3D9_EXPORT_SETCURRENTTEXTUREPALETTE,
+	D3D9_EXPORT_GETCURRENTTEXTUREPALETTE,
+	D3D9_EXPORT_SETSCISSORRECT,
+	D3D9_EXPORT_GETSCISSORRECT,
+	D3D9_EXPORT_SETSOFTWAREVERTEXPROCESSING,
+	D3D9_EXPORT_GETSOFTWAREVERTEXPROCESSING,
+	D3D9_EXPORT_SETNPATCHMODE,
+	D3D9_EXPORT_GETNPATCHMODE,
+	D3D9_EXPORT_DRAWPRIMITIVE,
+	D3D9_EXPORT_DRAWINDEXEDPRIMITIVE,
+	D3D9_EXPORT_DRAWPRIMITIVEUP,
+	D3D9_EXPORT_DRAWINDEXEDPRIMITIVEUP,
+	D3D9_EXPORT_PROCESSVERTICES,
+	D3D9_EXPORT_CREATEVERTEXDECLARATION,
+	D3D9_EXPORT_SETVERTEXDECLARATION,
+	D3D9_EXPORT_GETVERTEXDECLARATION,
+	D3D9_EXPORT_SETFVF,
+	D3D9_EXPORT_GETFVF,
+	D3D9_EXPORT_CREATEVERTEXSHADER,
+	D3D9_EXPORT_SETVERTEXSHADER,
+	D3D9_EXPORT_GETVERTEXSHADER,
+	D3D9_EXPORT_SETVERTEXSHADERCONSTANTF,
+	D3D9_EXPORT_GETVERTEXSHADERCONSTANTF,
+	D3D9_EXPORT_SETVERTEXSHADERCONSTANTI,
+	D3D9_EXPORT_GETVERTEXSHADERCONSTANTI,
+	D3D9_EXPORT_SETVERTEXSHADERCONSTANTB,
+	D3D9_EXPORT_GETVERTEXSHADERCONSTANTB,
+	D3D9_EXPORT_SETSTREAMSOURCE,
+	D3D9_EXPORT_GETSTREAMSOURCE,
+	D3D9_EXPORT_SETSTREAMSOURCEFREQ,
+	D3D9_EXPORT_GETSTREAMSOURCEFREQ,
+	D3D9_EXPORT_SETINDICES,
+	D3D9_EXPORT_GETINDICES,
+	D3D9_EXPORT_CREATEPIXELSHADER,
+	D3D9_EXPORT_SETPIXELSHADER,
+	D3D9_EXPORT_GETPIXELSHADER,
+	D3D9_EXPORT_SETPIXELSHADERCONSTANTF,
+	D3D9_EXPORT_GETPIXELSHADERCONSTANTF,
+	D3D9_EXPORT_SETPIXELSHADERCONSTANTI,
+	D3D9_EXPORT_GETPIXELSHADERCONSTANTI,
+	D3D9_EXPORT_SETPIXELSHADERCONSTANTB,
+	D3D9_EXPORT_GETPIXELSHADERCONSTANTB,
+	D3D9_EXPORT_DRAWRECTPATCH,
+	D3D9_EXPORT_DRAWTRIPATCH,
+	D3D9_EXPORT_DELETEPATCH,
+	D3D9_EXPORT_CREATEQUERY
+};
+
+typedef struct {
+	void *buffer;
+
+	unsigned int length;
+	unsigned int allocated, element_size;
+} ARRAY;
+
+ARRAY ArrayNew(unsigned int element_size);
+void *ArrayGet(ARRAY *array, unsigned int index);
+void *ArraySet(ARRAY *array, unsigned int index, void *element);
+void *ArrayPush(ARRAY *array, void *element);
+void *ArrayPop(ARRAY *array);
+void ArrayFree(ARRAY *array);
+
+char *WCharToChar(char *dest, wchar_t *src);
+wchar_t *CharToWChar(wchar_t *dest, char *src);
+int MessageBoxF(HWND hWnd, LPCSTR lpCaption, UINT uType, const LPCSTR lpText, ...);
+
+PROCESSENTRY32 GetProcessInfoByName(wchar_t *exe_name);
+MODULEENTRY32 GetModuleInfoByName(int process_id, wchar_t *module_name);
+void SuspendProcess(int process_id);
+void ResumeProcess(int process_id);
+ULARGE_INTEGER GetThreadCreationTime(HANDLE thread);
+THREADENTRY32 GetThreadInfoById(int thread_id);
+THREADENTRY32 GetThreadInfoByNumber(int process_id, int number);
+void *GetThreadStackTop(int thread_id);
+void *GetThreadStack(int thread_id);
+unsigned int GetProcessThreadCount(int process_id);
+
+int WriteBuffer(HANDLE process, void *address, char *buffer, unsigned int size);
+int WriteChar(HANDLE process, void *address, char char_);
+int WriteShort(HANDLE process, void *address, short short_);
+int WriteInt(HANDLE process, void *address, int int_);
+int WriteFloat(HANDLE process, void *address, float float_);
+int WriteLong(HANDLE process, void *address, double long_);
+int WriteDouble(HANDLE process, void *address, double double_);
+int WriteLongLong(HANDLE process, void *address, long long longlong_);
+int ReadBuffer(HANDLE process, void *address, char *buffer, unsigned int size);
+char ReadChar(HANDLE process, void *address);
+short ReadShort(HANDLE process, void *address);
+int ReadInt(HANDLE process, void *address);
+float ReadFloat(HANDLE process, void *address);
+long ReadLong(HANDLE process, void *address);
+double ReadDouble(HANDLE process, void *address);
+long long ReadLongLong(HANDLE process, void *address);
+void *GetPointer(HANDLE process, unsigned int offset_count, ...);
+
+unsigned int Disassemble(unsigned char *bytes, unsigned int max, int offset, char *output);
+void *Memcpy(void *dest, const void *src, size_t n);
+void *SetJMP(void *dest, const void *src, size_t nops);
+int MaskCompare(const char *s1, const char *s2, char *mask);
+void *FindPattern(void *base, unsigned int search_length, char *pattern, char *mask);
+void *ProcessFindPattern(HANDLE process, void *base, unsigned int search_length, char *pattern, char *mask);
+void TrampolineHook(void *dest, void *src, void **gate);
+void UnTrampolineHook(void *src, void **gate);
+
+unsigned int *GetD3D9Exports();
+
+MODULEENTRY32 InjectDLL(int process_id, wchar_t *DLL_path);
