@@ -128,14 +128,17 @@ void MainThread() {
 	Disassemble((unsigned char *)addr, 5, addr, disassembled);
 	sscanf(disassembled, "call 0x%x", (DWORD *)&CopyBones);
 	addr -= 20;
+	printf("0x%x\n", addr);
 	TrampolineHook(UpdateBonesHook, (void *)addr, (void **)&UpdateBonesOriginal);
 
 	// 0xB5F1F0
 	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x55\x8B\xEC\x83\xE4\xF0\x83\xEC\x38\x56\x57\x8B\x81\xFC\x00\x00\x00\xF3\x0F\x10\xB9\x5C\x01\x00\x00\xF3\x0F\x10\xB1\x58\x01\x00\x00\x8B\xD0\xC1\xFA\x02\x05\x00\x40\x00\x00\x81\xE2\xFF\x3F\x00\x00", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+	printf("0x%x\n", addr);
 	TrampolineHook(UpdateActorHook, (void *)addr, (void **)&UpdateActorOriginal);
 
 	// 0x11C6A70
 	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x6A\xFF\x68\x00\x00\x00\x00\x64\xA1\x00\x00\x00\x00\x50\x81\xEC\x00\x00\x00\x00\x53\x55\x56\x57\xA1\x00\x00\x00\x00\x33\xC4\x50\x8D\x84\x24\x00\x00\x00\x00\x64\xA3\x00\x00\x00\x00\x8B\xE9\x89\x6C\x24\x00\x00\xFF\x89", "xxx????xxxxxxxxx?xxxxxxxx????xxxxxx?xxxxxxxxxxxxxx??xx");
+	printf("0x%x\n", addr);
 	TrampolineHook(LevelLoadHook, (void *)addr, (void **)&LevelLoadOriginal);
 }
 

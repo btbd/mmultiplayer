@@ -221,7 +221,7 @@ void Sender() {
 		}
 
 	next:
-		Sleep(17);
+		Sleep(1);
 	}
 }
 
