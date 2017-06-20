@@ -182,6 +182,7 @@ void Listener() {
 			WriteBuffer(process, player.bones, bones, BONES_SIZE);
 
 			WriteInt(process, (void *)(base + ((DWORD)&player.level - (DWORD)&player)), packet.level);
+			WriteInt(process, (void *)(base + ((DWORD)&player.ping - (DWORD)&player)), 0);
 		}
 	}
 }

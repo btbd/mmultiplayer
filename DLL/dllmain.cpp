@@ -24,11 +24,15 @@ int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
 		}
 
 		if (players[i].base == this_) {
-			if (level != players[i].level) {
+			if (level != players[i].level || players[i].ping > 200) {
 				*x = -237887 - (float)i * 10;
 				*y = 107302;
 				*z = 182292;
-			} else if (i == 0) {
+			} else {
+				++players[i].ping;
+			}
+			
+			/* else if (i == 0) {
 				float dx = ReadFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xE8)) - *x;
 				float dy = ReadFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xEC)) - *y;
 				float dz = ReadFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xF0)) - *z;
@@ -37,7 +41,7 @@ int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
 					WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x68), 2);
 					WriteFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x72C), 10000000);
 				}
-			}
+			} */
 		}
 	}
 
@@ -107,7 +111,7 @@ void MainThread() {
 	freopen("CONOUT$", "w", stderr);
 
 	for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
-		players[i].base = players[i].level = 0;
+		players[i].base = players[i].level = players[i].ping = 0;
 		players[i].bones = (char *)calloc(BONES_SIZE, 1);
 	}
 

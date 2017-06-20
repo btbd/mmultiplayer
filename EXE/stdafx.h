@@ -20,6 +20,7 @@ typedef struct {
 	char *bones; // Actor's bones to overwrite with
 
 	DWORD level; // Current player's level
+	DWORD ping; // Ping to timeout player's who disconnect
 } PLAYER;
 
 typedef struct {
