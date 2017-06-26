@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-static PLAYER players[10] = { 0 };
+static PLAYER players[64] = { 0 };
 static DWORD level = 0;
 DWORD base_path;
 
@@ -30,6 +30,25 @@ int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
 				*z = 182292;
 			} else {
 				++players[i].ping;
+
+				DWORD base = GetPlayerBase();
+				float pz = ReadFloat(GetCurrentProcess(), (void *)(base + 0xF0));
+				if (pz <= *z + (ReadFloat(GetCurrentProcess(), (void *)(base + 0x5D4)) != 0 ? 0 : PLAYER_HEIGHT) && pz >= *z - PLAYER_HEIGHT) {
+					float px = ReadFloat(GetCurrentProcess(), (void *)(base + 0xE8));
+					float py = ReadFloat(GetCurrentProcess(), (void *)(base + 0xEC));
+					float dx = px - *x;
+					float dy = py - *y;
+					if (sqrt(dx * dx + dy * dy) <= PLAYER_RADIUS * 2) {
+						float mx = (px + *x) / 2;
+						float my = (py + *y) / 2;
+						float angle = (float)atan2(dy, dx);
+
+						WriteFloat(GetCurrentProcess(), (void *)(base + 0xE8), mx + (float)cos(angle) * (PLAYER_RADIUS + 1));
+						WriteFloat(GetCurrentProcess(), (void *)(base + 0xEC), my + (float)sin(angle) * (PLAYER_RADIUS + 1));
+						WriteFloat(GetCurrentProcess(), (void *)(base + 0x100), ReadFloat(GetCurrentProcess(), (void *)(base + 0x100)) * (float)0.1);
+						WriteFloat(GetCurrentProcess(), (void *)(base + 0x100), ReadFloat(GetCurrentProcess(), (void *)(base + 0x100)) * (float)0.1);
+					}
+				}
 			}
 			
 			/* else if (i == 0) {

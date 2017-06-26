@@ -59,7 +59,7 @@ int main() {
 
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)ProcessListener, 0, 0, 0);
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)Listener, 0, 0, 0);
-	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)Sender, 0, 0, 0);
+	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)Sender, (void *)0, 0, 0);
 
 	int size;
 	struct sockaddr_in client;
@@ -173,11 +173,13 @@ void Listener() {
 			}
 
 			WriteBuffer(process, (void *)(player.base + 0xE8), (char *)packet.position, sizeof(float) * 3);
+			WriteBuffer(process, (void *)(player.base + 0x100), (char *)packet.velocity, sizeof(float) * 3);
 			WriteInt(process, (void *)(player.base + 0xF8), packet.rotation);
 
 			ReadBuffer(process, (void *)player_bones, bones, BONES_SIZE);
 			for (int i = 0; i < BONE_OFFSET_COUNT; ++i) {
-				*(float *)(bones + BONE_OFFSETS[i]) = ((float)((short *)packet.bones)[i]) / 215;
+				// *(float *)(bones + BONE_OFFSETS[i]) = ((float)((short *)packet.bones)[i]) / 215;
+				*(float *)(bones + BONE_OFFSETS[i]) = ((float *)packet.bones)[i];
 			}
 			WriteBuffer(process, player.bones, bones, BONES_SIZE);
 
@@ -187,7 +189,7 @@ void Listener() {
 	}
 }
 
-void Sender() {
+void Sender(int once) {
 	PACKET packet = { 0 };
 	DWORD player_base, player_bones;
 
@@ -208,9 +210,11 @@ void Sender() {
 			packet.index = index;
 			ReadBuffer(process, (void *)player_bones, bones, BONES_SIZE);
 			for (int i = 0; i < BONE_OFFSET_COUNT; ++i) {
-				((short *)packet.bones)[i] = (short)((*(float *)(bones + BONE_OFFSETS[i])) * 215);
+				// ((short *)packet.bones)[i] = (short)((*(float *)(bones + BONE_OFFSETS[i])) * 215);
+				((float *)packet.bones)[i] = *(float *)(bones + BONE_OFFSETS[i]);
 			}
 			ReadBuffer(process, (void *)(player_base + 0xE8), (char *)packet.position, sizeof(float) * 3);
+			ReadBuffer(process, (void *)(player_base + 0x100), (char *)packet.velocity, sizeof(float) * 3);
 			packet.position[2] += (float)fabs(ReadFloat(process, (void *)(player_base + 0x5D4)));
 			packet.rotation = ReadInt(process, (void *)(player_base + 0xF8)) % 0x10000;
 			packet.level = ReadInt(process, (void *)level);
@@ -221,7 +225,8 @@ void Sender() {
 		}
 
 	next:
-		Sleep(1);
+		if (once) return;
+		Sleep(2);
 	}
 }
 

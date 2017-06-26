@@ -15,6 +15,10 @@ typedef struct {
 	DWORD ping; // Player's last ping to timeout disconnected players
 } PLAYER;
 
+#define PI 3.141592653589793
+#define PLAYER_HEIGHT ((float)185)
+#define PLAYER_RADIUS ((float)40)
+
 extern "C" {
 	#include "memory.h"
 

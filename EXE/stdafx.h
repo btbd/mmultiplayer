@@ -25,12 +25,17 @@ typedef struct {
 
 typedef struct {
 	char index; // Player's index in the list of players
-	char bones[BONE_OFFSET_COUNT * 2]; // Player's bones
+	char bones[BONE_OFFSET_COUNT * 4]; // Player's bones
 	float position[3]; // Player's position (x, y, z)
+	float velocity[3]; // Player's velocity (x, y, z)
 	short rotation; // Player's rotation (0-65535)
 
 	DWORD level; // Player's current level
 } PACKET;
+
+#define PI 3.141592653589793
+#define PLAYER_HEIGHT ((float)185)
+#define PLAYER_RADIUS ((float)40)
 
 #define SERVER_PORT 1337
 #define CLIENT_PORT 1338
@@ -38,7 +43,7 @@ typedef struct {
 #define IP "169.46.27.141"
 
 void Listener();
-void Sender();
+void Sender(int once);
 void ProcessListener();
 void Send(char *ip, char *buffer, int size);
 HANDLE CallFunction(char *name, void *arg);
