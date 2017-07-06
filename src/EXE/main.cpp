@@ -1,5 +1,7 @@
 #include "stdafx.h"
 
+#define DEBUG
+
 char index = 0;
 SOCKET server_socket, client_socket;
 char clients[0xFF][0xFF];
@@ -10,7 +12,14 @@ DWORD base_path = 0;
 DWORD players = 0;
 DWORD level = 0;
 
-int main() {
+int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+#ifdef DEBUG
+	AllocConsole();
+	freopen("CONIN$", "r", stdin);
+	freopen("CONOUT$", "w", stdout);
+	freopen("CONOUT$", "w", stderr);
+#endif
+
 	LoadLibraryA("Multiplayer_DLL.dll");
 	if (!GetModuleHandleA("Multiplayer_DLL.dll")) {
 		printf("unable to load the DLL\n");
