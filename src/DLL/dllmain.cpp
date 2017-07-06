@@ -213,7 +213,7 @@ bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]) {
 		pV.y = position[1];
 		pV.z = position[2];
 		D3DXVec3Project(&pOut, &pV, &pViewport, &pProjection, &pView, &pWorld);
-		if (pOut.z > 0.01f || pOut.z < 1) {
+		if (pOut.z > 0.01f && pOut.z < 1) {
 			out[0] = pOut.x;
 			out[1] = pOut.y;
 			out[2] = pOut.z;
