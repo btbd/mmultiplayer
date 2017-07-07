@@ -7,7 +7,11 @@ var server = net.createServer(function(c) {
 	clients.push(client);
 	updateClients();
 	
-	c.on("data", function(d) {});
+	c.on("data", function(d) {
+		for (var i = 0; i < clients.length; ++i) {
+			clients[i].client.write(d.toString() + "\r");
+		}
+	});
 	
 	c.on("close", function(d) {
 		console.log("disconnected");

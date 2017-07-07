@@ -13,6 +13,7 @@
 #define BONES_SIZE 0xD80
 
 void WriteText(LPDIRECT3DDEVICE9 device, int pt, UINT weight, DWORD align, char *font, DWORD color, int x, int y, char *text, int length);
+void DrawRect(LPDIRECT3DDEVICE9 pDevice, float x, float y, float width, float height, D3DCOLOR color);
 bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]);
 DWORD GetPlayerBase();
 bool IsGameWindow(HWND);
@@ -34,4 +35,7 @@ extern "C" {
 
 	EXPORT void EXPORT_GetPlayersBase(DWORD *out);
 	EXPORT void EXPORT_GetLevelBase(DWORD *out);
+	EXPORT void EXPORT_SetHostPID(DWORD *in);
+	EXPORT void EXPORT_SetSendChatMessage(DWORD *in);
+	EXPORT void EXPORT_AddChatMessage(char *msg);
 }

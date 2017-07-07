@@ -12,7 +12,7 @@ DWORD base_path = 0;
 DWORD players = 0;
 DWORD level = 0;
 
-int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 #ifdef DEBUG
 	AllocConsole();
 	freopen("CONIN$", "r", stdin);
@@ -68,7 +68,7 @@ int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)ProcessListener, 0, 0, 0);
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)Listener, 0, 0, 0);
-	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)Sender, (void *)0, 0, 0);
+	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)Sender, 0, 0, 0);
 
 	int size;
 	struct sockaddr_in client;
@@ -96,6 +96,14 @@ int __stdcall WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdL
 				*strchr(buffer, '\t') = 0;
 				sscanf(buffer, "%hhu", &index);
 				printf("index: %d\n", index);
+			} else if (strchr(buffer, '\r')) {
+				printf("chat msg: %s\n", buffer);
+
+				DWORD length = strlen(buffer) + 1;
+				LPVOID msg = VirtualAllocEx(process, NULL, length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+				WriteBuffer(process, msg, buffer, length);
+				WaitForSingleObject(CallFunction("EXPORT_AddChatMessage", msg), INFINITE);
+				VirtualFreeEx(process, msg, 0, MEM_RELEASE);
 			}
 		}
 	}
@@ -110,7 +118,7 @@ void ProcessListener() {
 		tpid = GetProcessInfoByName(L"MirrorsEdge.exe").th32ProcessID;
 		if (!tpid) {
 			process = 0;
-		} else if (pid != tpid) {
+		} else if (pid != tpid && GetProcessThreadCount(tpid) > 30) {
 			pid = tpid;
 			if (process) {
 				CloseHandle(process);
@@ -135,7 +143,7 @@ void ProcessListener() {
 					VirtualFreeEx(process, arg, 0, MEM_RELEASE);
 				}
 
-				LPVOID base = (LPVOID)VirtualAllocEx(process, NULL, sizeof(DWORD), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+				LPVOID base = VirtualAllocEx(process, NULL, sizeof(DWORD), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 				do {
 					Sleep(100);
@@ -148,6 +156,12 @@ void ProcessListener() {
 					WaitForSingleObject(CallFunction("EXPORT_GetLevelBase", base), INFINITE);
 					ReadProcessMemory(process, base, &level, sizeof(DWORD), NULL);
 				} while (!level);
+
+				WriteInt(process, base, (int)GetCurrentProcessId());
+				WaitForSingleObject(CallFunction("EXPORT_SetHostPID", base), INFINITE);
+
+				WriteInt(process, base, (int)SendChatMessage);
+				WaitForSingleObject(CallFunction("EXPORT_SetSendChatMessage", base), INFINITE);
 
 				VirtualFreeEx(process, base, 0, MEM_RELEASE);
 			}
@@ -187,8 +201,8 @@ void Listener() {
 
 			ReadBuffer(process, (void *)player_bones, bones, BONES_SIZE);
 			for (int i = 0; i < BONE_OFFSET_COUNT; ++i) {
-				// *(float *)(bones + BONE_OFFSETS[i]) = ((float)((short *)packet.bones)[i]) / 215;
-				*(float *)(bones + BONE_OFFSETS[i]) = ((float *)packet.bones)[i];
+				*(float *)(bones + BONE_OFFSETS[i]) = ((float)((short *)packet.bones)[i]) / 215;
+				// *(float *)(bones + BONE_OFFSETS[i]) = ((float *)packet.bones)[i];
 			}
 			WriteBuffer(process, player.bones, bones, BONES_SIZE);
 
@@ -198,7 +212,7 @@ void Listener() {
 	}
 }
 
-void Sender(int once) {
+void Sender() {
 	PACKET packet = { 0 };
 	DWORD player_base, player_bones;
 
@@ -219,8 +233,8 @@ void Sender(int once) {
 			packet.index = index;
 			ReadBuffer(process, (void *)player_bones, bones, BONES_SIZE);
 			for (int i = 0; i < BONE_OFFSET_COUNT; ++i) {
-				// ((short *)packet.bones)[i] = (short)((*(float *)(bones + BONE_OFFSETS[i])) * 215);
-				((float *)packet.bones)[i] = *(float *)(bones + BONE_OFFSETS[i]);
+				((short *)packet.bones)[i] = (short)((*(float *)(bones + BONE_OFFSETS[i])) * 215);
+				// ((float *)packet.bones)[i] = *(float *)(bones + BONE_OFFSETS[i]);
 			}
 			ReadBuffer(process, (void *)(player_base + 0xE8), (char *)packet.position, sizeof(float) * 3);
 			ReadBuffer(process, (void *)(player_base + 0x100), (char *)packet.velocity, sizeof(float) * 3);
@@ -234,8 +248,7 @@ void Sender(int once) {
 		}
 
 	next:
-		if (once) return;
-		Sleep(2);
+		Sleep(1);
 	}
 }
 
@@ -251,6 +264,11 @@ void Send(char *ip, char *buffer, int size) {
 	if (sendto(client_socket, buffer, size, 0, (struct sockaddr *)&client, sizeof(struct sockaddr_in)) < 0) {
 		printf("failed to send data\n");
 	}
+}
+
+void SendChatMessage(char *str) {
+	printf("sending chat msg: %s\n", str);
+	send(server_socket, str, strlen(str), 0);
 }
 
 HANDLE CallFunction(char *name, void *arg) {
@@ -274,4 +292,12 @@ DWORD GetPlayerBase() {
 	}
 
 	return (DWORD)GetPointer(process, 5, base_path, 0xCC, 0x4A4, 0x214, 0x00);
+}
+
+bool IsGameWindow(HWND hWnd) {
+	char title[0xFF] = { 0 };
+	char check[] = "Mirror's Edge";
+	GetWindowTextA(hWnd, title, 0xFF);
+
+	return memcmp(title, check, 13) == 0;
 }

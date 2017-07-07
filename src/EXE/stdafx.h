@@ -25,7 +25,7 @@ typedef struct {
 
 typedef struct {
 	char index; // Player's index in the list of players
-	char bones[BONE_OFFSET_COUNT * 4]; // Player's bones
+	char bones[BONE_OFFSET_COUNT * 2]; // Player's bones
 	float position[3]; // Player's position (x, y, z)
 	float velocity[3]; // Player's velocity (x, y, z)
 	short rotation; // Player's rotation (0-65535)
@@ -36,6 +36,7 @@ typedef struct {
 #define PI 3.141592653589793
 #define PLAYER_HEIGHT ((float)185)
 #define PLAYER_RADIUS ((float)40)
+#define GetGameWindow() FindWindowExA(0, 0, "LaunchUnrealUWindowsClient", 0)
 
 #define SERVER_PORT 1337
 #define CLIENT_PORT 1338
@@ -43,8 +44,10 @@ typedef struct {
 #define IP "169.46.27.141"
 
 void Listener();
-void Sender(int once);
+void Sender();
 void ProcessListener();
 void Send(char *ip, char *buffer, int size);
 HANDLE CallFunction(char *name, void *arg);
 DWORD GetPlayerBase();
+bool IsGameWindow(HWND hWnd);
+void SendChatMessage(char *str);

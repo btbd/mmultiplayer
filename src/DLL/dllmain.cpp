@@ -1,14 +1,25 @@
 #include "stdafx.h"
 
+#define DEBUG
+
 static PLAYER players[64] = { 0 };
 static DWORD level = 0;
+static DWORD host_pid = 0;
+static DWORD SendChatMessage = 0;
+
 DWORD base_path;
+bool chat_mode = false;
+char *chat_input = (char *)calloc(1, 1);
+DWORD chat_input_length = 0;
+char *chat_messages = (char *)calloc(1, 1);
+DWORD chat_messages_length = 0;
 
 int(__thiscall *UpdateActorOriginal)(int this_, int);
 int(__thiscall *UpdateBonesOriginal)(int this_, int bones);
 int(__thiscall *LevelLoadOriginal)(void *this_, int, __int64);
 int(__thiscall *CopyBones)(int, int);
 HRESULT(__stdcall *EndSceneOriginal)(LPDIRECT3DDEVICE9 pDevice);
+BOOL(WINAPI *PeekMessageWOriginal)(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg);
 
 int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
 	float *x = (float *)(this_ + 0xE8);
@@ -32,41 +43,26 @@ int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
 				++players[i].ping;
 
 				DWORD base = GetPlayerBase();
-				if (GetAsyncKeyState(0x42) < 0 && IsGameWindow(GetForegroundWindow())) {
-					WriteFloat(GetCurrentProcess(), (void *)(base + 0xE8), *x);
-					WriteFloat(GetCurrentProcess(), (void *)(base + 0xEC), *y);
-					WriteFloat(GetCurrentProcess(), (void *)(base + 0xF0), *z);
-				}
+				if (base) {
+					float pz = ReadFloat(GetCurrentProcess(), (void *)(base + 0xF0));
+					if (pz <= *z + (ReadFloat(GetCurrentProcess(), (void *)(base + 0x5D4)) != 0 ? 0 : PLAYER_HEIGHT) && pz >= *z - PLAYER_HEIGHT) {
+						float px = ReadFloat(GetCurrentProcess(), (void *)(base + 0xE8));
+						float py = ReadFloat(GetCurrentProcess(), (void *)(base + 0xEC));
+						float dx = px - *x;
+						float dy = py - *y;
+						if (sqrt(dx * dx + dy * dy) <= PLAYER_RADIUS * 2) {
+							float mx = (px + *x) / 2;
+							float my = (py + *y) / 2;
+							float angle = (float)atan2(dy, dx);
 
-				float pz = ReadFloat(GetCurrentProcess(), (void *)(base + 0xF0));
-				if (pz <= *z + (ReadFloat(GetCurrentProcess(), (void *)(base + 0x5D4)) != 0 ? 0 : PLAYER_HEIGHT) && pz >= *z - PLAYER_HEIGHT) {
-					float px = ReadFloat(GetCurrentProcess(), (void *)(base + 0xE8));
-					float py = ReadFloat(GetCurrentProcess(), (void *)(base + 0xEC));
-					float dx = px - *x;
-					float dy = py - *y;
-					if (sqrt(dx * dx + dy * dy) <= PLAYER_RADIUS * 2) {
-						float mx = (px + *x) / 2;
-						float my = (py + *y) / 2;
-						float angle = (float)atan2(dy, dx);
-
-						WriteFloat(GetCurrentProcess(), (void *)(base + 0xE8), mx + (float)cos(angle) * (PLAYER_RADIUS + 1));
-						WriteFloat(GetCurrentProcess(), (void *)(base + 0xEC), my + (float)sin(angle) * (PLAYER_RADIUS + 1));
-						WriteFloat(GetCurrentProcess(), (void *)(base + 0x100), ReadFloat(GetCurrentProcess(), (void *)(base + 0x100)) * (float)0.1);
-						WriteFloat(GetCurrentProcess(), (void *)(base + 0x100), ReadFloat(GetCurrentProcess(), (void *)(base + 0x100)) * (float)0.1);
+							WriteFloat(GetCurrentProcess(), (void *)(base + 0xE8), mx + (float)cos(angle) * (PLAYER_RADIUS + 1));
+							WriteFloat(GetCurrentProcess(), (void *)(base + 0xEC), my + (float)sin(angle) * (PLAYER_RADIUS + 1));
+							WriteFloat(GetCurrentProcess(), (void *)(base + 0x100), ReadFloat(GetCurrentProcess(), (void *)(base + 0x100)) * (float)0.1);
+							WriteFloat(GetCurrentProcess(), (void *)(base + 0x100), ReadFloat(GetCurrentProcess(), (void *)(base + 0x100)) * (float)0.1);
+						}
 					}
 				}
 			}
-
-			/* else if (i == 0) {
-			float dx = ReadFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xE8)) - *x;
-			float dy = ReadFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xEC)) - *y;
-			float dz = ReadFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xF0)) - *z;
-			float dist = (float)sqrt(dx * dx + dy * dy + dz * dz);
-			if (dist <= 150) {
-			WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x68), 2);
-			WriteFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x72C), 10000000);
-			}
-			} */
 		}
 	}
 
@@ -138,7 +134,114 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 		}
 	}
 
+	if (chat_mode) {
+		D3DDEVICE_CREATION_PARAMETERS params;
+		RECT rect;
+		pDevice->GetCreationParameters(&params);
+		GetClientRect(params.hFocusWindow, &rect);
+
+		float width = (float)rect.right - rect.left;
+		float height = (float)rect.bottom - rect.top;
+
+		DrawRect(pDevice, 0, 0, width, height, D3DCOLOR_ARGB(100, 0, 0, 0));
+		
+		DrawRect(pDevice, 50, height - 100, width - 125, 70, D3DCOLOR_ARGB(100, 0, 0, 0));
+		WriteText(pDevice, 25, FW_NORMAL, DT_LEFT, "Arial", D3DCOLOR_ARGB(255, 255, 255, 255), 75, (int)height - 75, chat_input, chat_input_length);
+
+		int offset = 0;
+		for (char *c = chat_messages; *c; ++c) {
+			if (*c == '\n') offset += 25;
+		}
+
+		WriteText(pDevice, 25, FW_NORMAL, DT_LEFT, "Arial", D3DCOLOR_ARGB(255, 255, 255, 255), 75, ((int)height - 110) - offset, chat_messages, chat_messages_length);
+	}
+
 	return EndSceneOriginal(pDevice);
+}
+
+BOOL WINAPI PeekMessageWHook(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg) {
+	BOOL ret = PeekMessageWOriginal(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);
+
+	if (lpMsg->hwnd) {
+		switch (lpMsg->message) {
+			case WM_INPUT:
+				if (chat_mode) lpMsg->message = WM_NULL;
+				break;
+			case WM_KEYDOWN:
+				if (chat_mode) {
+					lpMsg->message = WM_NULL;
+					switch (lpMsg->wParam) {
+						case VK_BACK:
+							if (chat_input_length > 0) {
+								chat_input[--chat_input_length] = 0;
+							}
+							break;
+						case VK_RETURN:
+							if (host_pid && SendChatMessage && chat_input_length > 0) {
+								HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
+								if (process) {
+									LPVOID param = VirtualAllocEx(process, 0, chat_input_length + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+									WriteBuffer(process, param, chat_input, chat_input_length + 1);
+									WaitForSingleObject(CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendChatMessage, param, 0, 0), INFINITE);
+									VirtualFreeEx(process, param, 0, MEM_RELEASE);
+								}
+								CloseHandle(process);
+							}
+
+							chat_input_length = 0;
+							chat_input = (char *)realloc(chat_input, 1);
+							*chat_input = 0;
+							break;
+						default:
+							char c = MapVirtualKeyA(lpMsg->wParam, MAPVK_VK_TO_CHAR);
+							if (c > 31 && c < 127) {
+								if (isalpha(c)) {
+									if ((GetAsyncKeyState(VK_SHIFT) < 0 || GetKeyState(VK_CAPITAL) & 1)) {
+										c = toupper(c);
+									} else {
+										c = tolower(c);
+									}
+								} else if (GetAsyncKeyState(VK_SHIFT) < 0) {
+									BYTE keyboard[0x100] = { 0 };
+									WCHAR buffer[0x100];
+									char cbuffer[0x100];
+
+									keyboard[VK_SHIFT] = 0xFF;
+
+									ToUnicode(lpMsg->wParam, 0, keyboard, buffer, 0x100, 0);
+
+									sprintf(cbuffer, "%ws", buffer);
+
+									c = cbuffer[0];
+									if (!(c > 31 && c < 127)) {
+										break;
+									}
+								}
+
+								chat_input = (char *)realloc(chat_input, chat_input_length + 2);
+								chat_input[chat_input_length] = (char)c;
+								chat_input[++chat_input_length] = 0;
+							}
+					}
+
+				}
+				break;
+			case WM_KEYUP:
+				if (!chat_mode) {
+					if (lpMsg->wParam == 0x59) {
+						chat_mode = true;
+					}
+				} else {
+					lpMsg->message = WM_NULL;
+					if (lpMsg->wParam == VK_ESCAPE) {
+						chat_mode = false;
+					}
+				}
+				break;
+		}
+	}
+
+	return ret;
 }
 
 DWORD GetPlayerBase() {
@@ -160,6 +263,25 @@ void WriteText(LPDIRECT3DDEVICE9 device, int pt, UINT weight, DWORD align, char 
 	RECT r = { x, y, x, y };
 	lpFont->DrawTextA(NULL, text, length, &r, DT_NOCLIP | align, color);
 	lpFont->Release();
+}
+
+void DrawRect(LPDIRECT3DDEVICE9 pDevice, float x, float y, float width, float height, D3DCOLOR color) {
+	struct D3D_VERTEX {
+		float x, y, z, rhw;
+		DWORD color;
+	};
+
+	D3D_VERTEX v[4] = {
+		{ (float)x , (float)(y + height), 0.0f, 1.0f, color },
+		{ (float)x , (float)y , 0.0f, 1.0f, color },
+		{ (float)(x + width), (float)(y + height), 0.0f, 1.0f, color },
+		{ (float)(x + width), (float)y , 0.0f, 1.0f, color }
+	};
+
+	pDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
+	pDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+	pDevice->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+	pDevice->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, v, sizeof(D3D_VERTEX));
 }
 
 bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]) {
@@ -230,10 +352,12 @@ void MainThread() {
 		return;
 	}
 
+#ifdef DEBUG
 	AllocConsole();
 	freopen("CONIN$", "r", stdin);
 	freopen("CONOUT$", "w", stdout);
 	freopen("CONOUT$", "w", stderr);
+#endif
 
 	for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
 		players[i].base = players[i].level = players[i].ping = 0;
@@ -266,7 +390,10 @@ void MainThread() {
 	printf("0x%x\n", addr);
 	TrampolineHook(LevelLoadHook, (void *)addr, (void **)&LevelLoadOriginal);
 
+	while (!GetModuleHandleA("d3d9.dll")) Sleep(1);
 	TrampolineHook(EndSceneHook, (void *)GetD3D9Exports()[D3D9_EXPORT_ENDSCENE], (void **)&EndSceneOriginal);
+
+	TrampolineHook(PeekMessageWHook, PeekMessageW, (void **)&PeekMessageWOriginal);
 }
 
 EXPORT void EXPORT_GetPlayersBase(DWORD *out) {
@@ -278,6 +405,31 @@ EXPORT void EXPORT_GetPlayersBase(DWORD *out) {
 EXPORT void EXPORT_GetLevelBase(DWORD *out) {
 	if (out) {
 		*out = (DWORD)&level;
+	}
+}
+
+EXPORT void EXPORT_SetHostPID(DWORD *in) {
+	if (in) {
+		host_pid = *in;
+	}
+}
+
+EXPORT void EXPORT_SetSendChatMessage(DWORD *in) {
+	if (in) {
+		SendChatMessage = *in;
+	}
+}
+
+EXPORT void EXPORT_AddChatMessage(char *msg) {
+	if (msg) {
+		if (strchr(msg, '\r')) {
+			*strchr(msg, '\r') = '\n';
+		}
+
+		DWORD length = strlen(msg);
+		chat_messages = (char *)realloc(chat_messages, chat_messages_length + length + 1);
+		strcpy(chat_messages + chat_messages_length, msg);
+		chat_messages_length += length;
 	}
 }
 
