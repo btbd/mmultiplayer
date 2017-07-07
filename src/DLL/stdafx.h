@@ -12,11 +12,25 @@
 #define EXPORT __declspec(dllexport)
 #define BONES_SIZE 0xD80
 
+typedef struct {
+	float x, y, z, rhw;
+	DWORD color;
+} D3D_VERTEX;
+
 void WriteText(LPDIRECT3DDEVICE9 device, int pt, UINT weight, DWORD align, char *font, DWORD color, int x, int y, char *text, int length);
+int GetTextWidth(LPDIRECT3DDEVICE9 device, int pt, UINT weight, DWORD align, char *font, char *text, int length);
 void DrawRect(LPDIRECT3DDEVICE9 pDevice, float x, float y, float width, float height, D3DCOLOR color);
 bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]);
 DWORD GetPlayerBase();
 bool IsGameWindow(HWND);
+
+#define CHAT_DELAY 400
+
+typedef struct {
+	char *message;
+	DWORD message_length;
+	DWORD frame;
+} CHAT_MESSAGE;
 
 typedef struct {
 	DWORD base; // Actor's base

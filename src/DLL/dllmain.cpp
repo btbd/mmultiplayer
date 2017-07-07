@@ -11,6 +11,7 @@ DWORD base_path;
 bool chat_mode = false;
 char *chat_input = (char *)calloc(1, 1);
 DWORD chat_input_length = 0;
+ARRAY chat_array_messages = ArrayNew(sizeof(CHAT_MESSAGE));
 char *chat_messages = (char *)calloc(1, 1);
 DWORD chat_messages_length = 0;
 
@@ -148,12 +149,72 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 		DrawRect(pDevice, 50, height - 100, width - 125, 70, D3DCOLOR_ARGB(100, 0, 0, 0));
 		WriteText(pDevice, 25, FW_NORMAL, DT_LEFT, "Arial", D3DCOLOR_ARGB(255, 255, 255, 255), 75, (int)height - 75, chat_input, chat_input_length);
 
+		for (DWORD i = 0; i < chat_array_messages.length; ++i) {
+			CHAT_MESSAGE *m = (CHAT_MESSAGE *)ArrayGet(&chat_array_messages, i);
+			if (m->frame < CHAT_DELAY) {
+				++m->frame;
+			}
+		}
+
 		int offset = 0;
 		for (char *c = chat_messages; *c; ++c) {
 			if (*c == '\n') offset += 25;
 		}
 
 		WriteText(pDevice, 25, FW_NORMAL, DT_LEFT, "Arial", D3DCOLOR_ARGB(255, 255, 255, 255), 75, ((int)height - 110) - offset, chat_messages, chat_messages_length);
+	} else {
+		D3DDEVICE_CREATION_PARAMETERS params;
+		RECT rect;
+		pDevice->GetCreationParameters(&params);
+		GetClientRect(params.hFocusWindow, &rect);
+
+		pDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
+		pDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+		pDevice->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+
+		LPD3DXFONT lpFont;
+		D3DXCreateFontA(pDevice, 25, 0, FW_NORMAL, 1, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial", &lpFont);
+
+		int y = (rect.bottom - rect.top) - 110;
+		for (int i = chat_array_messages.length - 1; i > -1; --i) {
+			CHAT_MESSAGE *m = (CHAT_MESSAGE *)ArrayGet(&chat_array_messages, i);
+			if (m->frame < CHAT_DELAY) {
+				++m->frame;
+				y -= 25;
+				DWORD tc, bc;
+				if (m->frame > CHAT_DELAY - 50) {
+					float r = (CHAT_DELAY - m->frame) / 50.0f;
+					tc = D3DCOLOR_ARGB((DWORD)(255 * r), 255, 255, 255);
+					bc = D3DCOLOR_ARGB((DWORD)(100 * r), 0, 0, 0);
+				} else {
+					tc = D3DCOLOR_ARGB(255, 255, 255, 255);
+					bc = D3DCOLOR_ARGB(100, 0, 0, 0);
+				}
+
+				RECT r = { 0, 0, 0, 0 };
+				lpFont->DrawTextA(NULL, m->message, m->message_length, &r, DT_CALCRECT, D3DCOLOR_ARGB(0, 0, 0, 0));
+
+				D3D_VERTEX v[4] = {
+					{ (float)70 , (float)(y + 25), 0.0f, 1.0f, bc },
+					{ (float)70 , (float)y , 0.0f, 1.0f, bc },
+					{ (float)(80 + (float)r.right - r.left), (float)(y + 25), 0.0f, 1.0f, bc },
+					{ (float)(80 + (float)r.right - r.left), (float)y , 0.0f, 1.0f, bc }
+				};
+
+				pDevice->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, v, sizeof(D3D_VERTEX));
+
+				r.left = r.right = 75;
+				r.top = r.bottom = y;
+				lpFont->DrawTextA(NULL, m->message, m->message_length, &r, DT_NOCLIP | DT_LEFT, tc);
+			} else {
+				for (DWORD e = i; e < chat_array_messages.length - 1; ++e) {
+					ArraySet(&chat_array_messages, e, ArrayGet(&chat_array_messages, e + 1));
+				}
+				--chat_array_messages.length;
+			}
+		}
+
+		lpFont->Release();
 	}
 
 	return EndSceneOriginal(pDevice);
@@ -164,7 +225,7 @@ BOOL WINAPI PeekMessageWHook(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wM
 
 	if (lpMsg->hwnd) {
 		switch (lpMsg->message) {
-			case WM_INPUT:
+			case WM_INPUT: case WM_LBUTTONDOWN: case WM_LBUTTONUP: case WM_RBUTTONDOWN: case WM_RBUTTONUP:
 				if (chat_mode) lpMsg->message = WM_NULL;
 				break;
 			case WM_KEYDOWN:
@@ -191,6 +252,7 @@ BOOL WINAPI PeekMessageWHook(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wM
 							chat_input_length = 0;
 							chat_input = (char *)realloc(chat_input, 1);
 							*chat_input = 0;
+							chat_mode = false;
 							break;
 						default:
 							char c = MapVirtualKeyA(lpMsg->wParam, MAPVK_VK_TO_CHAR);
@@ -266,11 +328,6 @@ void WriteText(LPDIRECT3DDEVICE9 device, int pt, UINT weight, DWORD align, char 
 }
 
 void DrawRect(LPDIRECT3DDEVICE9 pDevice, float x, float y, float width, float height, D3DCOLOR color) {
-	struct D3D_VERTEX {
-		float x, y, z, rhw;
-		DWORD color;
-	};
-
 	D3D_VERTEX v[4] = {
 		{ (float)x , (float)(y + height), 0.0f, 1.0f, color },
 		{ (float)x , (float)y , 0.0f, 1.0f, color },
@@ -425,6 +482,13 @@ EXPORT void EXPORT_AddChatMessage(char *msg) {
 		if (strchr(msg, '\r')) {
 			*strchr(msg, '\r') = '\n';
 		}
+
+		CHAT_MESSAGE m;
+		m.message = _strdup(msg);
+		m.message_length = strlen(msg);
+		m.frame = 0;
+		
+		ArrayPush(&chat_array_messages, &m);
 
 		DWORD length = strlen(msg);
 		chat_messages = (char *)realloc(chat_messages, chat_messages_length + length + 1);
