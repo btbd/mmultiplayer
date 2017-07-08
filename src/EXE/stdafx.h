@@ -8,6 +8,8 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <math.h>
+#include <sys/stat.h>
+#include "resource.h"
 #pragma comment(lib, "ws2_32.lib")
 #include "memory.h"
 
@@ -21,6 +23,7 @@ typedef struct {
 
 	DWORD level; // Current player's level
 	DWORD ping; // Ping to timeout players who disconnect
+	char *name; // Player's name
 } PLAYER;
 
 typedef struct {
@@ -31,7 +34,13 @@ typedef struct {
 	short rotation; // Player's rotation (0-65535)
 
 	DWORD level; // Player's current level
+	char name[33]; // Player's name
 } PACKET;
+
+typedef struct {
+	char username[33];
+	bool collision, nametags, chat;
+} SETTINGS;
 
 #define PI 3.141592653589793
 #define PLAYER_HEIGHT ((float)185)
@@ -51,3 +60,8 @@ HANDLE CallFunction(char *name, void *arg);
 DWORD GetPlayerBase();
 bool IsGameWindow(HWND hWnd);
 void SendChatMessage(char *str);
+void WindowThread();
+void SaveSettings(SETTINGS *settings);
+DWORD GetFileSize(char *path);
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);

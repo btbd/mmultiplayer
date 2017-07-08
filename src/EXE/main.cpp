@@ -6,6 +6,7 @@ char index = 0;
 SOCKET server_socket, client_socket;
 char clients[0xFF][0xFF];
 int clients_length = 0;
+SETTINGS settings;
 
 HANDLE process = 0;
 DWORD base_path = 0;
@@ -13,6 +14,11 @@ DWORD players = 0;
 DWORD level = 0;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+	CreateMutexA(0, FALSE, "Local\\Megem.exe");
+	if (GetLastError() == ERROR_ALREADY_EXISTS) {
+		return -1;
+	}
+
 #ifdef DEBUG
 	AllocConsole();
 	freopen("CONIN$", "r", stdin);
@@ -25,6 +31,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		printf("unable to load the DLL\n");
 		return 1;
 	}
+
+	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)WindowThread, 0, 0, 0);
 
 	WSADATA wsaData;
 	SOCKADDR_IN server = { 0 };
@@ -191,7 +199,7 @@ void Listener() {
 			memset(&player, 0, sizeof(PLAYER));
 			base = players + (sizeof(PLAYER) * packet.index);
 			ReadBuffer(process, (void *)base, (char *)&player, sizeof(PLAYER));
-			if (!player.base || !player.bones) {
+			if (!player.base || !player.bones || !player.name) {
 				continue;
 			}
 
@@ -208,6 +216,8 @@ void Listener() {
 
 			WriteInt(process, (void *)(base + ((DWORD)&player.level - (DWORD)&player)), packet.level);
 			WriteInt(process, (void *)(base + ((DWORD)&player.ping - (DWORD)&player)), 0);
+
+			WriteBuffer(process, player.name, packet.name, 33);
 		}
 	}
 }
@@ -241,6 +251,8 @@ void Sender() {
 			packet.position[2] += (float)fabs(ReadFloat(process, (void *)(player_base + 0x5D4)));
 			packet.rotation = ReadInt(process, (void *)(player_base + 0xF8)) % 0x10000;
 			packet.level = ReadInt(process, (void *)level);
+			memcpy(packet.name, settings.username, 33);
+			packet.name[32] = 0;
 
 			for (int i = 0; i < clients_length; ++i) {
 				Send(clients[i], (char *)&packet, sizeof(PACKET));
@@ -248,7 +260,7 @@ void Sender() {
 		}
 
 	next:
-		Sleep(1);
+		Sleep(8);
 	}
 }
 
@@ -268,7 +280,10 @@ void Send(char *ip, char *buffer, int size) {
 
 void SendChatMessage(char *str) {
 	printf("sending chat msg: %s\n", str);
-	send(server_socket, str, strlen(str), 0);
+	char *msg = (char *)malloc(strlen(settings.username) + strlen(str) + 3);
+	int length = sprintf(msg, "%s: %s", settings.username, str);
+	send(server_socket, msg, length, 0);
+	free(msg);
 }
 
 HANDLE CallFunction(char *name, void *arg) {
@@ -300,4 +315,27 @@ bool IsGameWindow(HWND hWnd) {
 	GetWindowTextA(hWnd, title, 0xFF);
 
 	return memcmp(title, check, 13) == 0;
+}
+
+DWORD GetFileSize(char *path) {
+	struct stat st;
+
+	if (stat(path, &st) == 0) {
+		return st.st_size;
+	}
+
+	return 0;
+}
+
+void SaveSettings(SETTINGS *s) {
+	memcpy(&settings, s, sizeof(SETTINGS));
+
+	char path[0xFF];
+	GetTempPathA(0xFF, path);
+	strcat(path, "multiplayer.settings");
+	FILE *file = fopen(path, "wb");
+	if (file) {
+		fwrite(s, sizeof(SETTINGS), 1, file);
+		fclose(file);
+	}
 }

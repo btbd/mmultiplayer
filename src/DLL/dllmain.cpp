@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#define DEBUG
+// #define DEBUG
 
 static PLAYER players[64] = { 0 };
 static DWORD level = 0;
@@ -14,6 +14,7 @@ DWORD chat_input_length = 0;
 ARRAY chat_array_messages = ArrayNew(sizeof(CHAT_MESSAGE));
 char *chat_messages = (char *)calloc(1, 1);
 DWORD chat_messages_length = 0;
+SETTINGS settings;
 
 int(__thiscall *UpdateActorOriginal)(int this_, int);
 int(__thiscall *UpdateBonesOriginal)(int this_, int bones);
@@ -44,7 +45,7 @@ int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
 				++players[i].ping;
 
 				DWORD base = GetPlayerBase();
-				if (base) {
+				if (settings.collision && base) {
 					float pz = ReadFloat(GetCurrentProcess(), (void *)(base + 0xF0));
 					if (pz <= *z + (ReadFloat(GetCurrentProcess(), (void *)(base + 0x5D4)) != 0 ? 0 : PLAYER_HEIGHT) && pz >= *z - PLAYER_HEIGHT) {
 						float px = ReadFloat(GetCurrentProcess(), (void *)(base + 0xE8));
@@ -119,20 +120,38 @@ int __fastcall LevelLoadHook(void *this_, void *idle_, int a2, __int64 a3) {
 }
 
 HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
-	char text[0xFF];
-	float position[3];
-	float out[3];
+	pDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
+	pDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+	pDevice->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1);
 
-	for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
-		if (players[i].base && level == players[i].level && players[i].ping < 200) {
-			ReadBuffer(GetCurrentProcess(), (void *)(players[i].base + 0xE8), (char *)position, 3 * sizeof(float));
-			position[2] += PLAYER_HEIGHT / 2.0f;
+	if (settings.nametags) {
+		float position[3];
+		float out[3];
 
-			if (WorldToScreen(pDevice, position, out)) {
-				int length = sprintf(text, "Player %d", i);
-				WriteText(pDevice, 20, FW_BOLD, DT_CENTER, "Arial", D3DCOLOR_ARGB(255, 255, 0, 0), (int)out[0], (int)out[1], text, length);
+		LPD3DXFONT lpFont;
+		D3DXCreateFontA(pDevice, 20, 0, FW_BOLD, 1, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial", &lpFont);
+
+		for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
+			if (players[i].base && level == players[i].level && players[i].ping < 200) {
+				ReadBuffer(GetCurrentProcess(), (void *)(players[i].base + 0xE8), (char *)position, 3 * sizeof(float));
+				position[2] += PLAYER_HEIGHT / 2.0f;
+
+				if (WorldToScreen(pDevice, position, out)) {
+					int length = strnlen(players[i].name, 32);
+					RECT r = { 0, 0, 0, 0 };
+					lpFont->DrawTextA(NULL, players[i].name, length, &r, DT_CALCRECT, D3DCOLOR_ARGB(0, 0, 0, 0));
+
+					float width = (float)(r.right - r.left);
+					DrawRect(pDevice, out[0] - (width / 2) - 7, out[1] - 7, width + 11, 30, D3DCOLOR_ARGB(100, 0, 0, 0), false);
+
+					r.left = r.right = (int)out[0];
+					r.top = r.bottom = (int)out[1];
+					lpFont->DrawTextA(NULL, players[i].name, length, &r, DT_NOCLIP | DT_CENTER, D3DCOLOR_ARGB(255, 255, 255, 255));
+				}
 			}
 		}
+
+		lpFont->Release();
 	}
 
 	if (chat_mode) {
@@ -144,9 +163,9 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 		float width = (float)rect.right - rect.left;
 		float height = (float)rect.bottom - rect.top;
 
-		DrawRect(pDevice, 0, 0, width, height, D3DCOLOR_ARGB(100, 0, 0, 0));
+		DrawRect(pDevice, 0, 0, width, height, D3DCOLOR_ARGB(100, 0, 0, 0), false);
 		
-		DrawRect(pDevice, 50, height - 100, width - 125, 70, D3DCOLOR_ARGB(100, 0, 0, 0));
+		DrawRect(pDevice, 50, height - 100, width - 125, 70, D3DCOLOR_ARGB(100, 0, 0, 0), false);
 		WriteText(pDevice, 25, FW_NORMAL, DT_LEFT, "Arial", D3DCOLOR_ARGB(255, 255, 255, 255), 75, (int)height - 75, chat_input, chat_input_length);
 
 		for (DWORD i = 0; i < chat_array_messages.length; ++i) {
@@ -162,15 +181,11 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 		}
 
 		WriteText(pDevice, 25, FW_NORMAL, DT_LEFT, "Arial", D3DCOLOR_ARGB(255, 255, 255, 255), 75, ((int)height - 110) - offset, chat_messages, chat_messages_length);
-	} else {
+	} else if (settings.chat) {
 		D3DDEVICE_CREATION_PARAMETERS params;
 		RECT rect;
 		pDevice->GetCreationParameters(&params);
 		GetClientRect(params.hFocusWindow, &rect);
-
-		pDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
-		pDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-		pDevice->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1);
 
 		LPD3DXFONT lpFont;
 		D3DXCreateFontA(pDevice, 25, 0, FW_NORMAL, 1, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial", &lpFont);
@@ -194,14 +209,7 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 				RECT r = { 0, 0, 0, 0 };
 				lpFont->DrawTextA(NULL, m->message, m->message_length, &r, DT_CALCRECT, D3DCOLOR_ARGB(0, 0, 0, 0));
 
-				D3D_VERTEX v[4] = {
-					{ (float)70 , (float)(y + 25), 0.0f, 1.0f, bc },
-					{ (float)70 , (float)y , 0.0f, 1.0f, bc },
-					{ (float)(80 + (float)r.right - r.left), (float)(y + 25), 0.0f, 1.0f, bc },
-					{ (float)(80 + (float)r.right - r.left), (float)y , 0.0f, 1.0f, bc }
-				};
-
-				pDevice->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, v, sizeof(D3D_VERTEX));
+				DrawRect(pDevice, 70, (float)y, (float)r.right - r.left + 10, 25, bc, false);
 
 				r.left = r.right = 75;
 				r.top = r.bottom = y;
@@ -327,7 +335,7 @@ void WriteText(LPDIRECT3DDEVICE9 device, int pt, UINT weight, DWORD align, char 
 	lpFont->Release();
 }
 
-void DrawRect(LPDIRECT3DDEVICE9 pDevice, float x, float y, float width, float height, D3DCOLOR color) {
+void DrawRect(LPDIRECT3DDEVICE9 pDevice, float x, float y, float width, float height, D3DCOLOR color, bool init_render_state) {
 	D3D_VERTEX v[4] = {
 		{ (float)x , (float)(y + height), 0.0f, 1.0f, color },
 		{ (float)x , (float)y , 0.0f, 1.0f, color },
@@ -335,9 +343,11 @@ void DrawRect(LPDIRECT3DDEVICE9 pDevice, float x, float y, float width, float he
 		{ (float)(x + width), (float)y , 0.0f, 1.0f, color }
 	};
 
-	pDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
-	pDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-	pDevice->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+	if (init_render_state) {
+		pDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
+		pDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+		pDevice->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+	}
 	pDevice->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, v, sizeof(D3D_VERTEX));
 }
 
@@ -419,6 +429,7 @@ void MainThread() {
 	for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
 		players[i].base = players[i].level = players[i].ping = 0;
 		players[i].bones = (char *)calloc(BONES_SIZE, 1);
+		players[i].name = (char *)calloc(33, 1);
 	}
 
 	MODULEENTRY32 module = GetModuleInfoByName(GetCurrentProcessId(), L"MirrorsEdge.exe");
@@ -451,6 +462,19 @@ void MainThread() {
 	TrampolineHook(EndSceneHook, (void *)GetD3D9Exports()[D3D9_EXPORT_ENDSCENE], (void **)&EndSceneOriginal);
 
 	TrampolineHook(PeekMessageWHook, PeekMessageW, (void **)&PeekMessageWOriginal);
+
+	for (;;) {
+		char path[0xFF];
+		GetTempPathA(0xFF, path);
+		strcat(path, "multiplayer.settings");
+		FILE *file = fopen(path, "rb");
+		if (file) {
+			fread(&settings, sizeof(SETTINGS), 1, file);
+			fclose(file);
+		}
+		
+		Sleep(1000);
+	}
 }
 
 EXPORT void EXPORT_GetPlayersBase(DWORD *out) {
