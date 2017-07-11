@@ -37,7 +37,7 @@ int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
 		}
 
 		if (players[i].base == this_) {
-			if (level != players[i].level || players[i].ping >= 200) {
+			if (level != players[i].level || players[i].ping >= 100) {
 				*x = -237887 - (float)i * 10;
 				*y = 107302;
 				*z = 182292;
@@ -132,7 +132,7 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 		D3DXCreateFontA(pDevice, 20, 0, FW_BOLD, 1, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial", &lpFont);
 
 		for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
-			if (players[i].base && level == players[i].level && players[i].ping < 200) {
+			if (players[i].base && level == players[i].level && players[i].ping < 100) {
 				ReadBuffer(GetCurrentProcess(), (void *)(players[i].base + 0xE8), (char *)position, 3 * sizeof(float));
 				position[2] += PLAYER_HEIGHT / 2.0f;
 

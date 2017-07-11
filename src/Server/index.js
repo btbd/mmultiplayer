@@ -3,19 +3,24 @@ var clients = [];
 var net = require("net");
 var server = net.createServer(function(c) {
 	var client = new Client(c);
-	console.log("connection: " + client.ip);
 	clients.push(client);
-	updateClients();
-	
+
 	c.on("data", function(d) {
-		for (var i = 0; i < clients.length; ++i) {
-			clients[i].client.write(d.toString() + "\r");
+		d = d.toString();
+		
+		if (d.substring(0, 2) === "\rr") {
+			client.room = parseInt(d.slice(2));
+			updateClients();
+		} else {
+			for (var i = 0; i < clients.length; ++i) {
+				if (clients[i].room === client.room) {
+					clients[i].client.write(d + "\r");
+				}
+			}
 		}
 	});
 	
 	c.on("close", function(d) {
-		console.log("disconnected");
-		
 		for (var i = 0; i < clients.length; ++i) {
 			if (clients[i].ip === client.ip) {
 				clients.splice(i, 1);
@@ -32,21 +37,29 @@ var server = net.createServer(function(c) {
 function Client(c) {
 	this.client = c;
 	this.ip = c.remoteAddress;
+	this.room = 0;
 }
 
 function getClients(e) {
 	var s = "";
 	for (var i = 0; i < clients.length; ++i) {
-		if (clients[i].ip === e || s.indexOf(clients[i].ip) !== -1) continue;
+		if (clients[i].ip === e.ip || s.indexOf(clients[i].ip) !== -1 || clients[i].room !== e.room) continue;
 		s += clients[i].ip + "\n";
+	}
+	if (s === "") {
+		s = "\n\0";
 	}
 	return s;
 }
 
 function updateClients() {
 	for (var i = 0; i < clients.length; ++i) {
-		clients[i].client.write(getClients(clients[i].ip));
-		clients[i].client.write(i + "\t");
+		clients[i].client.write(getClients(clients[i]));
+		var index = 0;
+		for (var e = 0; e < i; ++e) {
+			if (clients[e].room === clients[i].room) ++index;
+		}
+		clients[i].client.write(index + "\t");
 	}
 }
 

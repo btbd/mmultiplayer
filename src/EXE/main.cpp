@@ -14,7 +14,7 @@ DWORD players = 0;
 DWORD level = 0;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-	CreateMutexA(0, FALSE, "Local\\Megem.exe");
+	CreateMutexA(0, FALSE, "Local\\Multiplayer.exe");
 	if (GetLastError() == ERROR_ALREADY_EXISTS) {
 		return -1;
 	}
@@ -31,8 +31,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		printf("unable to load the DLL\n");
 		return 1;
 	}
-
-	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)WindowThread, 0, 0, 0);
 
 	WSADATA wsaData;
 	SOCKADDR_IN server = { 0 };
@@ -53,11 +51,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 
 	if (connect(server_socket, (SOCKADDR *)&server, sizeof(server)) == SOCKET_ERROR) {
+		MessageBoxA(0, "Unable to connect to the server", "Error", MB_ICONWARNING);
 		printf("unable to connect\n");
 		return 1;
 	}
 
 	printf("connected\n");
+
+	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)WindowThread, 0, 0, 0);
 
 	client_socket = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -87,23 +88,27 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		if (recvfrom(server_socket, buffer, sizeof(buffer), 0, (struct sockaddr *)&client, &size) > 0) {
 			printf("server: %s\n", buffer);
 
-			if (strchr(buffer, '\n')) {
-				clients_length = 0;
-
-				int c;
-				char *b = buffer;
-				while ((c = (int)strchr(b, '\n')) != NULL) {
-					*(char *)c = 0;
-					clients[clients_length][0] = 0;
-					strcat(clients[clients_length], b);
-
-					b = (char *)(c + 1);
-					++clients_length;
-				}
-			} else if (strchr(buffer, '\t')) {
+			if (strchr(buffer, '\t')) {
 				*strchr(buffer, '\t') = 0;
 				sscanf(buffer, "%hhu", &index);
 				printf("index: %d\n", index);
+			} else if (strchr(buffer, '\n')) {
+				clients_length = 0;
+
+				if (buffer[1] != '\0' && size > 2) {
+					int c;
+					char *b = buffer;
+					while ((c = (int)strchr(b, '\n')) != NULL) {
+						*(char *)c = 0;
+						clients[clients_length][0] = 0;
+						strcat(clients[clients_length], b);
+
+						b = (char *)(c + 1);
+						++clients_length;
+					}
+				} else {
+					printf("reset\n");
+				}
 			} else if (strchr(buffer, '\r')) {
 				printf("chat msg: %s\n", buffer);
 
@@ -195,7 +200,7 @@ void Listener() {
 		memset(&packet, 0, sizeof(PACKET));
 		size = recvfrom(client_socket, (char *)&packet, sizeof(PACKET), 0, (struct sockaddr *)&client, (int *)&client_size);
 
-		if (process && players && size == sizeof(PACKET) && packet.level == ReadInt(process, (void *)level) && (player_bones = (DWORD)GetPointer(process, 3, GetPlayerBase() + 0x5DC, 0x24C, 0x00))) {
+		if (process && players && size == sizeof(PACKET) && packet.level && packet.level == ReadInt(process, (void *)level) && (player_bones = (DWORD)GetPointer(process, 3, GetPlayerBase() + 0x5DC, 0x24C, 0x00))) {
 			memset(&player, 0, sizeof(PLAYER));
 			base = players + (sizeof(PLAYER) * packet.index);
 			ReadBuffer(process, (void *)base, (char *)&player, sizeof(PLAYER));
@@ -229,7 +234,7 @@ void Sender() {
 	char bones[BONES_SIZE];
 
 	for (;;) {
-		if (process) {
+		if (process && !settings.spectator) {
 			player_base = GetPlayerBase();
 			if (!player_base) {
 				goto next;
@@ -268,7 +273,7 @@ void Send(char *ip, char *buffer, int size) {
 	struct sockaddr_in client;
 	client.sin_family = AF_INET;
 	if (inet_pton(AF_INET, ip, &client.sin_addr) == 0) {
-		printf("failed to get client ip");
+		printf("failed to get client ip: %s\n", ip);
 		return;
 	}
 	client.sin_port = htons(CLIENT_PORT);
@@ -329,6 +334,10 @@ DWORD GetFileSize(char *path) {
 
 void SaveSettings(SETTINGS *s) {
 	memcpy(&settings, s, sizeof(SETTINGS));
+
+	char buffer[0xFF];
+	int length = sprintf(buffer, "\rr%d", s->room);
+	send(server_socket, buffer, length, 0);
 
 	char path[0xFF];
 	GetTempPathA(0xFF, path);

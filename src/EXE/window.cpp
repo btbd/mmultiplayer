@@ -41,7 +41,9 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 			if (!file || GetFileSize(path) != sizeof(SETTINGS)) {
 				file = fopen(path, "wb");
 				strcpy(s.username, "anonymous");
+				s.room = 0;
 				s.chat = s.collision = s.nametags = true;
+				s.spectator = false;
 				fwrite(&s, sizeof(SETTINGS), 1, file);
 			} else {
 				fread(&s, sizeof(SETTINGS), 1, file);
@@ -52,7 +54,10 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 			if (s.chat) CheckDlgButton(hDlg, IDC_CHAT, BST_CHECKED);
 			if (s.collision) CheckDlgButton(hDlg, IDC_COLLISION, BST_CHECKED);
 			if (s.nametags) CheckDlgButton(hDlg, IDC_NAMETAGS, BST_CHECKED);
+			if (s.spectator) CheckDlgButton(hDlg, IDC_SPECTATOR, BST_CHECKED);
 			SetDlgItemTextA(hDlg, IDC_USERNAME, s.username);
+			sprintf(path, "%d", s.room);
+			SetDlgItemTextA(hDlg, IDC_ROOM, path);
 
 			return (INT_PTR)TRUE;
 		}
@@ -67,6 +72,11 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 					s.chat = !!IsDlgButtonChecked(hDlg, IDC_CHAT);
 					s.collision = !!IsDlgButtonChecked(hDlg, IDC_COLLISION);
 					s.nametags = !!IsDlgButtonChecked(hDlg, IDC_NAMETAGS);
+					s.spectator = !!IsDlgButtonChecked(hDlg, IDC_SPECTATOR);
+
+					char buffer[0xFF];
+					GetDlgItemTextA(hDlg, IDC_ROOM, buffer, 0xFF);
+					sscanf(buffer, "%d", &s.room);
 
 					SaveSettings(&s);
 

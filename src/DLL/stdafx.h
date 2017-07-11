@@ -42,7 +42,8 @@ typedef struct {
 
 typedef struct {
 	char username[33];
-	bool collision, nametags, chat;
+	DWORD room;
+	bool collision, nametags, chat, spectator;
 } SETTINGS;
 
 #define PI 3.141592653589793
