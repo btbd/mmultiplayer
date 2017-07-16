@@ -134,7 +134,7 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 		for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
 			if (players[i].base && level == players[i].level && players[i].ping < 100) {
 				ReadBuffer(GetCurrentProcess(), (void *)(players[i].base + 0xE8), (char *)position, 3 * sizeof(float));
-				position[2] += PLAYER_HEIGHT / 2.0f;
+				position[2] += ReadFloat(GetCurrentProcess(), (void *)(players[i].base + 0x40));
 
 				if (WorldToScreen(pDevice, position, out)) {
 					int length = strnlen(players[i].name, 32);
@@ -513,6 +513,21 @@ EXPORT void EXPORT_AddChatMessage(char *msg) {
 		m.frame = 0;
 		
 		ArrayPush(&chat_array_messages, &m);
+
+		for (int i = strlen(chat_messages) - 1, count = 0; i > -1; --i) {
+			if (chat_messages[i] == '\n') {
+				++count;
+				if (count > 30) {
+					char *chat_messages_new = _strdup(&chat_messages[i + 1]);
+					free(chat_messages);
+
+					chat_messages = chat_messages_new;
+					chat_messages_length = strlen(chat_messages_new);
+
+					break;
+				}
+			}
+		}
 
 		DWORD length = strlen(msg);
 		chat_messages = (char *)realloc(chat_messages, chat_messages_length + length + 1);

@@ -23,7 +23,7 @@ bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]);
 DWORD GetPlayerBase();
 bool IsGameWindow(HWND);
 
-#define CHAT_DELAY 400
+#define CHAT_DELAY 800
 
 typedef struct {
 	char *message;

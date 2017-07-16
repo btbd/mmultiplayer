@@ -19,7 +19,7 @@ void WindowThread() {
 
 	RegisterClassExW(&wcex);
 
-	HWND hWnd = CreateWindow(L"win32app", L"", WS_BORDER, 50, 50, 0, 0, nullptr, nullptr, GetModuleHandle(0), nullptr);
+	HWND hWnd = CreateWindow(L"win32app", L"", 0, 0, 0, 0, 0, nullptr, nullptr, GetModuleHandle(0), nullptr);
 
 	ShowWindow(CreateDialog(GetModuleHandle(0), MAKEINTRESOURCE(IDD_WINDOW), hWnd, DlgProc), SW_SHOW);
 
@@ -50,7 +50,7 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 			}
 			fclose(file);
 
-			SaveSettings(&s);
+			SaveSettings(&s, true);
 			if (s.chat) CheckDlgButton(hDlg, IDC_CHAT, BST_CHECKED);
 			if (s.collision) CheckDlgButton(hDlg, IDC_COLLISION, BST_CHECKED);
 			if (s.nametags) CheckDlgButton(hDlg, IDC_NAMETAGS, BST_CHECKED);
@@ -62,7 +62,9 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 			return (INT_PTR)TRUE;
 		}
 		case WM_CLOSE:
+			LeaveRoom();
 			exit(0);
+			break;
 		case WM_COMMAND: {
 			int id = LOWORD(wParam);
 			switch (id) {
@@ -78,7 +80,7 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 					GetDlgItemTextA(hDlg, IDC_ROOM, buffer, 0xFF);
 					sscanf(buffer, "%d", &s.room);
 
-					SaveSettings(&s);
+					SaveSettings(&s, false);
 
 					break;
 				}

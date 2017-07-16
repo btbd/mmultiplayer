@@ -7,6 +7,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <Psapi.h>
 #include <math.h>
 #include <sys/stat.h>
 #include "resource.h"
@@ -29,7 +30,7 @@ typedef struct {
 typedef struct {
 	char index; // Player's index in the list of players
 	char bones[BONE_OFFSET_COUNT * 2]; // Player's bones
-	float position[3]; // Player's position (x, y, z)
+	float position[4]; // Player's position (x, y, z)
 	float velocity[3]; // Player's velocity (x, y, z)
 	short rotation; // Player's rotation (0-65535)
 
@@ -51,18 +52,21 @@ typedef struct {
 #define SERVER_PORT 1337
 #define CLIENT_PORT 1338
 // #define IP "127.0.0.1"
-#define IP "169.46.27.141"
+#define IP "169.46.27.92"
 
 void Listener();
 void Sender();
 void ProcessListener();
+void ParseMessage(char *buff);
 void Send(char *ip, char *buffer, int size);
 HANDLE CallFunction(char *name, void *arg);
 DWORD GetPlayerBase();
 bool IsGameWindow(HWND hWnd);
 void SendChatMessage(char *str);
 void WindowThread();
-void SaveSettings(SETTINGS *settings);
+void SaveSettings(SETTINGS *settings, bool startup);
+void CopyMaps();
+void LeaveRoom();
 DWORD GetFileSize(char *path);
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);

@@ -4,6 +4,8 @@ var net = require("net");
 var server = net.createServer(function(c) {
 	var client = new Client(c);
 	clients.push(client);
+	
+	console.log("connection");
 
 	c.on("data", function(d) {
 		d = d.toString();
@@ -14,7 +16,7 @@ var server = net.createServer(function(c) {
 		} else {
 			for (var i = 0; i < clients.length; ++i) {
 				if (clients[i].room === client.room) {
-					clients[i].client.write(d + "\r");
+					clients[i].client.write(d + "\r" + "\x17");
 				}
 			}
 		}
@@ -24,7 +26,6 @@ var server = net.createServer(function(c) {
 		for (var i = 0; i < clients.length; ++i) {
 			if (clients[i].ip === client.ip) {
 				clients.splice(i, 1);
-				break;
 			}
 		}
 		
@@ -54,12 +55,12 @@ function getClients(e) {
 
 function updateClients() {
 	for (var i = 0; i < clients.length; ++i) {
-		clients[i].client.write(getClients(clients[i]));
+		clients[i].client.write(getClients(clients[i]) + "\x17");
 		var index = 0;
 		for (var e = 0; e < i; ++e) {
 			if (clients[e].room === clients[i].room) ++index;
 		}
-		clients[i].client.write(index + "\t");
+		clients[i].client.write(index + "\t" + "\x17");
 	}
 }
 
