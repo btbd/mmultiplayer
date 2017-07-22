@@ -41,6 +41,7 @@ typedef struct {
 typedef struct {
 	char username[33];
 	DWORD room;
+	char character;
 	bool collision, nametags, chat, spectator;
 } SETTINGS;
 
@@ -49,15 +50,30 @@ typedef struct {
 #define PLAYER_RADIUS ((float)40)
 #define GetGameWindow() FindWindowExA(0, 0, "LaunchUnrealUWindowsClient", 0)
 
-#define SERVER_PORT 1337
-#define CLIENT_PORT 1338
+#define SERVER_PORT 2783
+#define CLIENT_PORT 7319
 // #define IP "127.0.0.1"
-#define IP "169.46.27.92"
+#define IP "169.46.23.141"
+
+enum {
+	CHARACTER_FAITH = 0,
+	CHARACTER_KATE,
+	CHARACTER_CELESTE,
+	CHARACTER_ASSAULT_CELESTE,
+	CHARACTER_JACKNIFE,
+	CHARACTER_MILLER,
+	CHARACTER_KREEG,
+	CHARACTER_COP_PURSUIT,
+	CHARACTER_GHOST,
+	CHARACTER_COUNT
+};
+
+#define ACTORS_PER_CHARACTER 8
 
 void Listener();
 void Sender();
 void ProcessListener();
-void ParseMessage(char *buff);
+void ParseMessage(char *buffer);
 void Send(char *ip, char *buffer, int size);
 HANDLE CallFunction(char *name, void *arg);
 DWORD GetPlayerBase();
@@ -65,7 +81,7 @@ bool IsGameWindow(HWND hWnd);
 void SendChatMessage(char *str);
 void WindowThread();
 void SaveSettings(SETTINGS *settings, bool startup);
-void CopyMaps();
+bool CopyMaps(DWORD pid);
 void LeaveRoom();
 DWORD GetFileSize(char *path);
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);

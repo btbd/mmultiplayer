@@ -6,7 +6,7 @@ char index = 0;
 SOCKET server_socket, client_socket;
 char clients[0xFF][0xFF];
 int clients_length = 0;
-SETTINGS settings;
+SETTINGS settings = { 0 };
 
 HANDLE process = 0;
 DWORD base_path = 0;
@@ -28,6 +28,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	LoadLibraryA("Multiplayer_DLL.dll");
 	if (!GetModuleHandleA("Multiplayer_DLL.dll")) {
+		MessageBoxA(0, "Unable to load the DLL", "Error", MB_ICONWARNING);
 		printf("unable to load the DLL\n");
 		return 1;
 	}
@@ -83,61 +84,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	char buffer[0xFFF] = { 0 };
 	for (;;) {
 		memset(buffer, 0, sizeof(buffer));
-		if ((size = recv(server_socket, buffer, sizeof(buffer), 0)) > 0) {
-			if (strchr(buffer, 0x17)) {
-				char *end = 0;
-				char *buff = buffer;
-				while ((end = strchr(buff, 0x17))) {
-					*end = 0;
-
-					ParseMessage(buff);
-
-					buff = end + 1;
-	
-				}
-			} else {
-				ParseMessage(buffer);
-			}
-
-			/* char *end;
-			char *buff = buffer;
-			while ((end = strchr(buff, 0x17))) {
-				*end = 0;
-				printf("server: %s\n", buff);
-
-				if (strchr(buff, '\t')) {
-					*strchr(buff, '\t') = 0;
-					sscanf(buff, "%hhu", &index);
-					printf("index: %d\n", index);
-				} else if (strchr(buff, '\n')) {
-					clients_length = 0;
-
-					if (buff[1] != '\0') {
-						int c;
-						char *b = buff;
-						while ((c = (int)strchr(b, '\n')) != NULL) {
-							*(char *)c = 0;
-							clients[clients_length][0] = 0;
-							strcat(clients[clients_length], b);
-
-							b = (char *)(c + 1);
-							++clients_length;
-						}
-					} else {
-						printf("reset\n");
-					}
-				} else if (strchr(buff, '\r')) {
-					printf("chat msg: %s\n", buff);
-
-					DWORD length = strlen(buff) + 1;
-					LPVOID msg = VirtualAllocEx(process, NULL, length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-					WriteBuffer(process, msg, buff, length);
-					WaitForSingleObject(CallFunction("EXPORT_AddChatMessage", msg), INFINITE);
-					VirtualFreeEx(process, msg, 0, MEM_RELEASE);
-				}
-
-				buff = end + 1;
-			} */
+		if ((size = recv(server_socket, buffer, sizeof(buffer), 0)) > 0 && strchr(buffer, '\n')) {
+			ParseMessage(buffer);
 		}
 	}
 
@@ -145,38 +93,46 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	return 0;
 }
 
-void ParseMessage(char *buff) {
-	printf("server: %s\n", buff);
+void ParseMessage(char *buffer) {
+	for (;;) {
+		char *end = strchr(buffer, '\n');
+		if (!end) break;
+		*end = 0;
 
-	if (strchr(buff, '\t')) {
-		*strchr(buff, '\t') = 0;
-		sscanf(buff, "%hhu", &index);
-		printf("index: %d\n", index);
-	} else if (strchr(buff, '\n')) {
-		clients_length = 0;
+		if (*buffer == 'c') {
+			++buffer;
+			clients_length = 0;
 
-		if (buff[1] != '\0') {
-			int c;
-			char *b = buff;
-			while ((c = (int)strchr(b, '\n')) != NULL) {
-				*(char *)c = 0;
-				clients[clients_length][0] = 0;
-				strcat(clients[clients_length], b);
+			char *c;
+			while ((c = strchr(buffer, ' '))) {
+				*c = 0;
+				strcpy(clients[clients_length], buffer);
 
-				b = (char *)(c + 1);
+				printf("added client: %s\n", buffer);
+
+				buffer = c + 1;
 				++clients_length;
 			}
-		} else {
-			printf("reset\n");
-		}
-	} else if (strchr(buff, '\r')) {
-		printf("chat msg: %s\n", buff);
 
-		DWORD length = strlen(buff) + 1;
-		LPVOID msg = VirtualAllocEx(process, NULL, length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-		WriteBuffer(process, msg, buff, length);
-		WaitForSingleObject(CallFunction("EXPORT_AddChatMessage", msg), INFINITE);
-		VirtualFreeEx(process, msg, 0, MEM_RELEASE);
+			printf("client count: %d\n", clients_length);
+		} else if (*buffer == 'i') {
+			++buffer;
+			sscanf(buffer, "%hhu", &index);
+			printf("index: %d\n", index);
+		} else if (*buffer == 'm') {
+			++buffer;
+			printf("chat msg: %s\n", buffer);
+
+			if (process) {
+				DWORD length = strlen(buffer) + 1;
+				LPVOID msg = VirtualAllocEx(process, NULL, length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+				WriteBuffer(process, msg, buffer, length);
+				WaitForSingleObject(CallFunction("EXPORT_AddChatMessage", msg), INFINITE);
+				VirtualFreeEx(process, msg, 0, MEM_RELEASE);
+			}
+		}
+
+		buffer = end + 1;
 	}
 }
 
@@ -187,7 +143,7 @@ void ProcessListener() {
 		tpid = GetProcessInfoByName(L"MirrorsEdge.exe").th32ProcessID;
 		if (!tpid) {
 			process = 0;
-		} else if (pid != tpid && GetProcessThreadCount(tpid) > 30) {
+		} else if (pid != tpid && CopyMaps(tpid) && GetProcessThreadCount(tpid) > 30) {
 			pid = tpid;
 			if (process) {
 				CloseHandle(process);
@@ -195,8 +151,6 @@ void ProcessListener() {
 
 			process = OpenProcess(PROCESS_ALL_ACCESS, 0, pid);
 			if (process) {
-				CopyMaps();
-
 				MODULEENTRY32 module = GetModuleInfoByName(pid, L"MirrorsEdge.exe");
 				base_path = (DWORD)ProcessFindPattern(process, module.modBaseAddr, module.modBaseSize, "\x89\x0D\x00\x00\x00\x00\xB9\x00\x00\x00\x00\xFF", "xx????x????x");
 				base_path = ReadInt(process, (void *)(base_path + 2));
@@ -268,6 +222,11 @@ void Listener() {
 				continue;
 			}
 
+			int character = packet.index / ACTORS_PER_CHARACTER;
+			if (character == CHARACTER_KATE || character == CHARACTER_MILLER || character == CHARACTER_KREEG) {
+				packet.position[2] -= 90;
+				packet.position[3] += 90;
+			}
 			WriteBuffer(process, (void *)(player.base + 0xE8), (char *)packet.position, sizeof(float) * 3);
 			WriteFloat(process, (void *)(player.base + 0x40), packet.position[3]);
 			WriteBuffer(process, (void *)(player.base + 0x100), (char *)packet.velocity, sizeof(float) * 3);
@@ -333,7 +292,12 @@ void Sender() {
 	}
 }
 
-void CopyMaps() {
+bool CopyMaps(DWORD pid) {
+	HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, pid);
+	if (!process) {
+		return false;
+	}
+
 	char to[0xFF];
 	char from[0xFF];
 
@@ -343,14 +307,20 @@ void CopyMaps() {
 	// Remove the "Binaries\MirrorsEdge.exe"
 	for (int c = 0; (to[l] != '\\' || ++c < 2) && l > -1; to[l] = 0, --l);
 
+	strcat(to, "TdGame\\CookedPC\\Maps\\mp_faith.me1");
+	GetCurrentDirectoryA(0xFF, from);
+	strcat(from, "\\mp_faith.me1");
+
+	if (PathFileExistsA(to) && GetFileSize(to) == GetFileSize(from)) {
+		CloseHandle(process);
+		return true;
+	}
+
+	to[l + 1] = 0;
 	strcat(to, "TdGame\\CookedPC\\Maps");
 
 	printf("game maps path: %s\n", to);
-
-	GetCurrentDirectoryA(0xFF, from);
-	strcat(from, "\\maps\\*");
-
-	printf("stored maps path: %s\n", from);
+	printf("mp_faith path: %s\n", from);
 
 	SHFILEOPSTRUCTA s = { 0 };
 	s.wFunc = FO_COPY;
@@ -358,6 +328,20 @@ void CopyMaps() {
 	s.pTo = to;
 	s.pFrom = from;
 	SHFileOperationA(&s);
+
+	GetModuleFileNameExA(process, NULL, to, 0xFF);
+
+	TerminateProcess(process, 0);
+
+	STARTUPINFOA si = { 0 };
+	PROCESS_INFORMATION pi = { 0 };
+
+	si.cb = sizeof(si);
+
+	CreateProcessA(to, 0, 0, 0, 0, 0, 0, 0, &si, &pi);
+	CloseHandle(process);
+
+	return false;
 }
 
 void Send(char *ip, char *buffer, int size) {
@@ -376,8 +360,8 @@ void Send(char *ip, char *buffer, int size) {
 
 void SendChatMessage(char *str) {
 	printf("sending chat msg: %s\n", str);
-	char *msg = (char *)malloc(strlen(settings.username) + strlen(str) + 3);
-	int length = sprintf(msg, "%s: %s", settings.username, str);
+	char *msg = (char *)malloc(strlen(settings.username) + strlen(str) + 5);
+	int length = sprintf(msg, "m%s: %s\n", settings.username, str);
 	send(server_socket, msg, length, 0);
 	free(msg);
 }
@@ -431,26 +415,25 @@ void SaveSettings(SETTINGS *s, bool startup) {
 			LeaveRoom();
 			clients_length = 0;
 
-			Sleep(100);
-
-			int length = sprintf(buffer, "\rr%d", s->room);
+			int length = sprintf(buffer, "r%d\n", s->room);
 			send(server_socket, buffer, length, 0);
 
-			Sleep(100);
-
-			length = sprintf(buffer, "%s joined the room", s->username);
+			length = sprintf(buffer, "m%s joined the room\n", s->username);
 			send(server_socket, buffer, length, 0);
 		} else if (strcmp(s->username, settings.username) != 0) {
-			int length = sprintf(buffer, "%s renamed to %s", settings.username, s->username);
+			int length = sprintf(buffer, "m%s renamed to %s\n", settings.username, s->username);
 			send(server_socket, buffer, length, 0);
 		}
 	} else {
-		int length = sprintf(buffer, "\rr%d", s->room);
+		int length = sprintf(buffer, "r%d\n", s->room);
 		send(server_socket, buffer, length, 0);
 
-		Sleep(100);
+		length = sprintf(buffer, "m%s joined the room\n", s->username);
+		send(server_socket, buffer, length, 0);
+	}
 
-		length = sprintf(buffer, "%s joined the room", s->username);
+	if (s->character != settings.character) {
+		int length = sprintf(buffer, "c%d\n", s->character);
 		send(server_socket, buffer, length, 0);
 	}
 
@@ -468,6 +451,6 @@ void SaveSettings(SETTINGS *s, bool startup) {
 
 void LeaveRoom() {
 	char buffer[0xFF];
-	int length = sprintf(buffer, "%s left the room", settings.username);
+	int length = sprintf(buffer, "m%s left the room\n", settings.username);
 	send(server_socket, buffer, length, 0);
 }
