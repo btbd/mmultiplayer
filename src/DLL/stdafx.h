@@ -67,6 +67,7 @@ enum {
 };
 
 #define ACTORS_PER_CHARACTER 8
+#define PING_TIMEOUT 50
 #define PI 3.141592653589793
 #define PLAYER_HEIGHT ((float)185)
 #define PLAYER_RADIUS ((float)40)

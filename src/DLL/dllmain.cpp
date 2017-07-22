@@ -49,12 +49,12 @@ int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
 		}
 
 		if (players[i].base == this_) {
-			if (level != players[i].level || players[i].ping >= 100) {
+			if (level != players[i].level || players[i].ping >= PING_TIMEOUT) {
 				*x = -237887 - (float)i * 10;
 				*y = 107302;
 				*z = 192292;
 				players[i].level = 0;
-				players[i].ping = 100;
+				players[i].ping = PING_TIMEOUT;
 			} else {
 				++players[i].ping;
 
@@ -74,7 +74,7 @@ int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
 							WriteFloat(GetCurrentProcess(), (void *)(base + 0xE8), mx + (float)cos(angle) * (PLAYER_RADIUS + 1));
 							WriteFloat(GetCurrentProcess(), (void *)(base + 0xEC), my + (float)sin(angle) * (PLAYER_RADIUS + 1));
 							WriteFloat(GetCurrentProcess(), (void *)(base + 0x100), ReadFloat(GetCurrentProcess(), (void *)(base + 0x100)) * (float)0.1);
-							WriteFloat(GetCurrentProcess(), (void *)(base + 0x100), ReadFloat(GetCurrentProcess(), (void *)(base + 0x100)) * (float)0.1);
+							WriteFloat(GetCurrentProcess(), (void *)(base + 0x104), ReadFloat(GetCurrentProcess(), (void *)(base + 0x104)) * (float)0.1);
 						}
 					}
 				}
@@ -96,7 +96,7 @@ int __fastcall UpdateBonesHook(int this_, void *idle_, int bones) {
 		int bone_count = (32 * *(DWORD *)(bones + 4));
 		if (bone_count == 0xD80 || bone_count == 0xCC0 || bone_count == 0xB00 || bone_count == 0xA20 || bone_count == 0x9E0) {
 			for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
-				if (players[i].base && players[i].level == level && players[i].ping < 100) {
+				if (players[i].base && players[i].level == level && players[i].ping < PING_TIMEOUT) {
 					DWORD bones_base = ReadInt(GetCurrentProcess(), (void *)(players[i].base + 0x1C0));
 					if (bones_base) {
 						bones_base = ReadInt(GetCurrentProcess(), (void *)(bones_base + 0x24C));
@@ -108,24 +108,12 @@ int __fastcall UpdateBonesHook(int this_, void *idle_, int bones) {
 									break;
 								case CHARACTER_KATE:
 									WriteBuffer(GetCurrentProcess(), (void *)bones_base, players[i].bones, 7 * 32);
-									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 39 * 32), players[i].bones + 45 * 32, 63 * 32);
 
-									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 18 * 32), players[i].bones + 18 * 32, 1 * 32);
-
-									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 14 * 32), players[i].bones + 14 * 32, 1 * 32);
-									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 15 * 32), players[i].bones + 15 * 32, 1 * 32);
-									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 19 * 32), players[i].bones + 19 * 32, 1 * 32);
-
-									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 16 * 32), players[i].bones + 16 * 32, 1 * 32);
-									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 17 * 32), players[i].bones + 17 * 32, 1 * 32);
-									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 20 * 32), players[i].bones + 20 * 32, 1 * 32);
-									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 21 * 32), players[i].bones + 21 * 32, 1 * 32);
-
-									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 22 * 32), players[i].bones + 22 * 32, 1 * 32);
-									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 23 * 32), players[i].bones + 23 * 32, 1 * 32);
+									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 14 * 32), players[i].bones + 14 * 32, 10 * 32);
 
 									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 33 * 32), players[i].bones + 39 * 32, 1 * 32);
 									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 36 * 32), players[i].bones + 42 * 32, 1 * 32);
+									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 39 * 32), players[i].bones + 45 * 32, 63 * 32);
 									
 									break;
 								case CHARACTER_CELESTE:
@@ -218,7 +206,7 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 		D3DXCreateFontA(pDevice, 20, 0, FW_BOLD, 1, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial", &lpFont);
 
 		for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
-			if (players[i].base && level == players[i].level && players[i].ping < 100) {
+			if (players[i].base && level == players[i].level && players[i].ping < PING_TIMEOUT) {
 				ReadBuffer(GetCurrentProcess(), (void *)(players[i].base + 0xE8), (char *)position, 3 * sizeof(float));
 				position[2] += ReadFloat(GetCurrentProcess(), (void *)(players[i].base + 0x40));
 
@@ -487,7 +475,7 @@ void HandleMessage(LPMSG lpMsg) {
 
 								bool found = false;
 								for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
-									if (players[i].base && players[i].level == level && players[i].ping < 100 && strcmp(players[i].name, name) == 0) {
+									if (players[i].base && players[i].level == level && players[i].ping < PING_TIMEOUT && strcmp(players[i].name, name) == 0) {
 										WriteBuffer(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xEC), (char *)(players[i].base + 0xEC), sizeof(float) * 2);
 										WriteFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xE8), ReadFloat(GetCurrentProcess(), (void *)(players[i].base + 0xE8)) + PLAYER_RADIUS);
 										found = true;
@@ -497,7 +485,7 @@ void HandleMessage(LPMSG lpMsg) {
 
 								if (!found) {
 									for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
-										if (players[i].base && players[i].level == level && players[i].ping < 100 && StrStrIA(players[i].name, name)) {
+										if (players[i].base && players[i].level == level && players[i].ping < PING_TIMEOUT && StrStrIA(players[i].name, name)) {
 											WriteBuffer(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xEC), (char *)(players[i].base + 0xEC), sizeof(float) * 2);
 											WriteFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xE8), ReadFloat(GetCurrentProcess(), (void *)(players[i].base + 0xE8)) + PLAYER_RADIUS);
 											break;
