@@ -26,8 +26,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	freopen("CONOUT$", "w", stderr);
 #endif
 
-	LoadLibraryA("Multiplayer_DLL.dll");
-	if (!GetModuleHandleA("Multiplayer_DLL.dll")) {
+	LoadLibraryA("mdll.dll");
+	if (!GetModuleHandleA("mdll.dll")) {
 		MessageBoxA(0, "Unable to load the DLL", "Error", MB_ICONWARNING);
 		printf("unable to load the DLL\n");
 		return 1;
@@ -155,9 +155,9 @@ void ProcessListener() {
 				base_path = (DWORD)ProcessFindPattern(process, module.modBaseAddr, module.modBaseSize, "\x89\x0D\x00\x00\x00\x00\xB9\x00\x00\x00\x00\xFF", "xx????x????x");
 				base_path = ReadInt(process, (void *)(base_path + 2));
 
-				if (!GetModuleInfoByName(pid, L"Multiplayer_DLL.dll").dwSize) {
+				if (!GetModuleInfoByName(pid, L"mdll.dll").dwSize) {
 					char path[MAX_PATH];
-					GetFullPathNameA("Multiplayer_DLL.dll", MAX_PATH, path, NULL);
+					GetFullPathNameA("mdll.dll", MAX_PATH, path, NULL);
 
 					LPVOID loadLibAddr = (LPVOID)GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA");
 					LPVOID arg = (LPVOID)VirtualAllocEx(process, NULL, strlen(path) + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
@@ -307,9 +307,9 @@ bool CopyMaps(DWORD pid) {
 	// Remove the "Binaries\MirrorsEdge.exe"
 	for (int c = 0; (to[l] != '\\' || ++c < 2) && l > -1; to[l] = 0, --l);
 
-	strcat(to, "TdGame\\CookedPC\\Maps\\mp_faith.me1");
+	strcat(to, "TdGame\\CookedPC\\Maps\\mp_actors.me1");
 	GetCurrentDirectoryA(0xFF, from);
-	strcat(from, "\\mp_faith.me1");
+	strcat(from, "\\mp_actors.me1");
 
 	if (PathFileExistsA(to) && GetFileSize(to) == GetFileSize(from)) {
 		CloseHandle(process);
@@ -320,7 +320,7 @@ bool CopyMaps(DWORD pid) {
 	strcat(to, "TdGame\\CookedPC\\Maps");
 
 	printf("game maps path: %s\n", to);
-	printf("mp_faith path: %s\n", from);
+	printf("mp_actors path: %s\n", from);
 
 	SHFILEOPSTRUCTA s = { 0 };
 	s.wFunc = FO_COPY;
@@ -371,12 +371,12 @@ HANDLE CallFunction(char *name, void *arg) {
 		return NULL;
 	}
 
-	int base = (int)GetModuleInfoByName(GetProcessId(process), L"Multiplayer_DLL.dll").modBaseAddr;
+	int base = (int)GetModuleInfoByName(GetProcessId(process), L"mdll.dll").modBaseAddr;
 	if (!base) {
 		return NULL;
 	}
 
-	int offset = (int)GetProcAddress(GetModuleHandleA("Multiplayer_DLL.dll"), name) - (int)GetModuleHandleA("Multiplayer_DLL.dll");
+	int offset = (int)GetProcAddress(GetModuleHandleA("mdll.dll"), name) - (int)GetModuleHandleA("mdll.dll");
 
 	return CreateRemoteThread(process, NULL, 0, (LPTHREAD_START_ROUTINE)(base + offset), arg, 0, NULL);
 }

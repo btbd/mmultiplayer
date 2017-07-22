@@ -197,7 +197,7 @@ int __fastcall LevelLoadHook(void *this_, void *idle_, int a2, __int64 a3) {
 	int ret = LevelLoadOriginal(this_, a2, a3);
 
 	if (strcmp(buffer, "TdMainMenu") != 0) {
-		ExecuteCommand(L"streammap mp_faith\r\n");
+		ExecuteCommand(L"streammap mp_actors\r\n");
 	}
 
 	return ret;
