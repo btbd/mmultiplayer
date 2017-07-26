@@ -24,6 +24,8 @@ Press `ESC` to exit. Press `ENTER` to send a message (pressing `ENTER` when the 
 
 Use the left and right arrow keys to move the input cursor. Use the up and down arrow keys to go to previous messages or commands you have sent.
 
+Supports `CTRL + C`, `CTRL + V`, and `CTRL + X`.
+
 Putting a `/` as the first character in your message will execute your message as a command.
 - For example: `/restartlevel` restarts your current level.
 - `/tp <player>` teleports you to `<player>` or a player whose name includes `<player>` while ignoring case if they are on the same level as you.

@@ -233,7 +233,7 @@ void Listener() {
 				packet.position[3] += 90;
 			}
 			WriteBuffer(process, (void *)(player.base + 0xE8), (char *)packet.position, sizeof(float) * 3);
-			if (fabs(packet.position[3]) > 200) {
+			if (fabs(packet.position[3]) > 750) {
 				packet.position[3] = 110;
 			}
 			WriteFloat(process, (void *)(player.base + 0x40), packet.position[3]);
