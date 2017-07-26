@@ -7,7 +7,11 @@ static DWORD level = 0;
 static DWORD host_pid = 0;
 static DWORD SendChatMessage = 0;
 
-DWORD base_path = 0, LevelLoadBase = 0, projection_base = 0, engine_info = 0;
+DWORD base_path = 0, LevelLoadBase = 0, SublevelFinishLoadBase = 0, CompareStringsBack = 0, projection_base = 0, engine_info = 0, level_stream_command = 0, string_table = 0;
+bool loading = false;
+char level_name[0xFF] = { 0 };
+wchar_t wlevel_name[0xFF] = { 0 };
+
 bool chat_mode = false;
 char *chat_input = (char *)calloc(1, 1);
 DWORD chat_input_length = 0, chat_input_alloc = 1;
@@ -22,11 +26,13 @@ SETTINGS settings;
 int(__thiscall *UpdateActorOriginal)(int this_, int);
 int(__thiscall *UpdateBonesOriginal)(int this_, int bones);
 int(__thiscall *LevelLoadOriginal)(void *this_, int, __int64);
+int(__thiscall *SublevelFinishLoadOriginal)(DWORD *this_, int, int);
 int(__thiscall *CopyBones)(int, int);
 HRESULT(__stdcall *EndSceneOriginal)(LPDIRECT3DDEVICE9 pDevice);
 void(*UpdateProjectionOriginal)();
 void **(__thiscall *ExecuteCommandOriginal)(int, void **, int, int);
 void(*GetEngineInfoOriginal)();
+DWORD *(__thiscall *CopyStringOriginal)(int this_, wchar_t *src);
 BOOL(WINAPI *PeekMessageOriginal)(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg);
 BOOL(WINAPI *PeekMessageWOriginal)(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg);
 BOOL(WINAPI *PeekMessageAOriginal)(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg);
@@ -114,7 +120,7 @@ int __fastcall UpdateBonesHook(int this_, void *idle_, int bones) {
 									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 33 * 32), players[i].bones + 39 * 32, 1 * 32);
 									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 36 * 32), players[i].bones + 42 * 32, 1 * 32);
 									WriteBuffer(GetCurrentProcess(), (void *)(bones_base + 39 * 32), players[i].bones + 45 * 32, 63 * 32);
-									
+
 									break;
 								case CHARACTER_CELESTE:
 									WriteBuffer(GetCurrentProcess(), (void *)bones_base, players[i].bones, 7 * 32);
@@ -150,7 +156,7 @@ int __fastcall UpdateBonesHook(int this_, void *idle_, int bones) {
 									WriteBuffer(GetCurrentProcess(), (void *)bones_base, players[i].bones, bone_count);
 									break;
 							}
-							
+
 							break;
 						}
 					}
@@ -165,27 +171,34 @@ int __fastcall UpdateBonesHook(int this_, void *idle_, int bones) {
 }
 
 int __fastcall LevelLoadHook(void *this_, void *idle_, int a2, __int64 a3) {
-	static char buffer[0xFF];
-
+	loading = true;
 	for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
 		players[i].base = 0;
 	}
 
-	// Hash the level name to a unique DWORD
-	WCharToChar(buffer, *(wchar_t **)(a2 + 0x1C));
-	DWORD h = (tolower(*buffer) ^ 0x4B9ACE2F) * 0x1000193;
-	int length = strlen(buffer);
-	for (int i = 1; i <= length; ++i) {
-		h = (tolower(*buffer) ^ h) * 0x1000193;
-	}
-	level = h;
-
-	printf("loading %s - 0x%x\n", buffer, level);
+	wcscpy(wlevel_name, *(wchar_t **)(a2 + 0x1C));
+	WCharToChar(level_name, *(wchar_t **)(a2 + 0x1C));
 
 	int ret = LevelLoadOriginal(this_, a2, a3);
 
-	if (strcmp(buffer, "TdMainMenu") != 0) {
+	if (_stricmp(level_name, "TdMainMenu") != 0) {
 		ExecuteCommand(L"streammap mp_actors\r\n");
+	}
+
+	level = Hash(level_name);
+	printf("loaded %s - 0x%x\n", level_name, level);
+
+	return ret;
+}
+
+int __fastcall SublevelFinishLoadHook(DWORD *this_, void *idle_, int a2, int a3) {
+	int ret = SublevelFinishLoadOriginal(this_, a2, a3);
+
+	if (ReadChar(GetCurrentProcess(), (void *)(a2 + 0x60)) & 0x80 && string_table) {
+		wchar_t *name = (wchar_t *)GetPointer(GetCurrentProcess(), 3, string_table, ReadInt(GetCurrentProcess(), (void *)(a2 + 0x3C)) * 4, 0x10);
+		if (name && _wcsnicmp(name, L"mp_actors", 9) == 0) {
+			loading = false;
+		}
 	}
 
 	return ret;
@@ -230,37 +243,44 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 
 	if (chat_mode) {
 		D3DDEVICE_CREATION_PARAMETERS params;
-		RECT rect;
+		RECT r, clip;
 		pDevice->GetCreationParameters(&params);
-		GetClientRect(params.hFocusWindow, &rect);
+		GetClientRect(params.hFocusWindow, &r);
 
-		float width = (float)rect.right - rect.left;
-		float height = (float)rect.bottom - rect.top;
+		float width = (float)r.right - r.left;
+		float height = (float)r.bottom - r.top;
 
 		DrawRect(pDevice, 0, 0, width, height, D3DCOLOR_ARGB(100, 0, 0, 0), false);
-
 		DrawRect(pDevice, 50, height - 100, width - 125, 70, D3DCOLOR_ARGB(100, 0, 0, 0), false);
 
 		LPD3DXFONT lpFont;
 		D3DXCreateFontA(pDevice, 25, 0, FW_NORMAL, 1, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial", &lpFont);
-		RECT r;
+
+		clip.left = 75;
+		clip.right = (int)width - 100;
+		clip.top = (int)height - 75;
+		clip.bottom = (int)height;
+
 		r.left = r.right = 75;
 		r.top = r.bottom = (int)height - 75;
 
+		int size = GetInputWidth(lpFont, chat_input, cursor_index);
+		if (size > width - 175) {
+			r.left -= size - ((int)width - 175);
+			r.right = r.left;
+		}
+
+		pDevice->SetRenderState(D3DRS_SCISSORTESTENABLE, TRUE);
+		pDevice->SetScissorRect(&clip);
+
+		lpFont->DrawTextA(NULL, chat_input, chat_input_length, &r, DT_NOCLIP | DT_LEFT, D3DCOLOR_ARGB(255, 255, 255, 255));
+
+		pDevice->SetRenderState(D3DRS_SCISSORTESTENABLE, FALSE);
+
 		if ((++cursor_frame / 30) % 2 == 0) {
-			RECT s = { 0 };
-			HDC hDC = GetDC(NULL);
-			HFONT font = CreateFontA(25, 0, 0, 0, FW_NORMAL, false, false, false, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH, "Arial");
-			SelectObject(hDC, font);
-			DrawTextA(hDC, chat_input, cursor_index, &s, DT_CALCRECT);
-			DeleteObject(font);
-			ReleaseDC(NULL, hDC);
-			lpFont->DrawTextA(NULL, chat_input, chat_input_length, &r, DT_NOCLIP | DT_LEFT, D3DCOLOR_ARGB(255, 255, 255, 255));
-			s.left = s.right = (s.right - s.left) + 72;
-			s.top = s.bottom = r.top - 2;
-			lpFont->DrawTextA(NULL, "|", 1, &s, DT_NOCLIP | DT_LEFT, D3DCOLOR_ARGB(255, 255, 255, 255));
-		} else {
-			lpFont->DrawTextA(NULL, chat_input, chat_input_length, &r, DT_NOCLIP | DT_LEFT, D3DCOLOR_ARGB(255, 255, 255, 255));
+			r.left = r.right = (r.left + size) - 3;
+			r.top = r.bottom = r.top - 2;
+			lpFont->DrawTextA(NULL, "|", 1, &r, DT_NOCLIP | DT_LEFT, D3DCOLOR_ARGB(255, 255, 255, 255));
 		}
 
 		for (DWORD i = 0; i < chat_array_messages.length; ++i) {
@@ -275,6 +295,7 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 			if (*c == '\n') offset += 25;
 		}
 
+		r.left = r.right = 75;
 		r.top = r.bottom = ((int)height - 110) - offset;
 		lpFont->DrawTextA(NULL, chat_messages, chat_messages_length, &r, DT_NOCLIP | DT_LEFT, D3DCOLOR_ARGB(255, 255, 255, 255));
 
@@ -311,7 +332,7 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 
 				r.left = r.right = 75;
 				r.top = r.bottom = y;
-				lpFont->DrawTextA(NULL, m->message, m->message_length, &r, DT_NOCLIP | DT_LEFT, tc);
+				lpFont->DrawTextA(NULL, m->message, m->message_length, &r, DT_NOCLIP | DT_LEFT , tc);
 			} else {
 				for (DWORD e = i; e < chat_array_messages.length - 1; ++e) {
 					ArraySet(&chat_array_messages, e, ArrayGet(&chat_array_messages, e + 1));
@@ -374,6 +395,13 @@ void HandleMessage(LPMSG lpMsg) {
 							if (previous_messages.length > 0) {
 								if (previous_message_index + 1 < (int)previous_messages.length) {
 									++previous_message_index;
+								} else {
+									chat_input_length = 0;
+									chat_input = (char *)realloc(chat_input, 1);
+									*chat_input = 0;
+									cursor_index = 0;
+									chat_input_alloc = 1;
+									break;
 								}
 
 								if (previous_message_index < (int)previous_messages.length) {
@@ -402,7 +430,84 @@ void HandleMessage(LPMSG lpMsg) {
 							}
 							break;
 						}
-						default: {
+						case 0x43: { // C
+							if (GetAsyncKeyState(VK_CONTROL) < 0) {
+								HGLOBAL buffer = GlobalAlloc(GMEM_MOVEABLE, chat_input_length + 1);
+								memcpy(GlobalLock(buffer), chat_input, chat_input_length + 1);
+								GlobalUnlock(buffer);
+								OpenClipboard(0);
+								EmptyClipboard();
+								SetClipboardData(CF_TEXT, buffer);
+								CloseClipboard();
+								break;
+							}
+
+							goto def;
+						}
+						case 0x56: { // V
+							if (GetAsyncKeyState(VK_CONTROL) < 0) {
+								if (OpenClipboard(0)) {
+									HANDLE data = GetClipboardData(CF_TEXT);
+									if (data) {
+										char *text = (char *)GlobalLock(data);
+										if (text && *text) {
+											int length = 0;
+											char *text_copy = (char *)malloc(strlen(text) + 1);
+											for (char *s = text, *c = text_copy; *s; ++s) {
+												if (*s != '\n' && *s != '\r' && *s != '\t') {
+													*c++ = *s;
+													++length;
+												}
+											}
+											text_copy[length] = 0;
+											text = text_copy;
+
+											char *new_input = (char *)malloc(chat_input_length + length + 1);
+
+											strncpy(new_input, chat_input, cursor_index);
+											new_input[cursor_index] = 0;
+											strcat(new_input, text);
+											strcat(new_input, chat_input + cursor_index);
+
+											chat_input_length = chat_input_length + length;
+											chat_input_alloc = chat_input_length + length + 1;
+											cursor_index += length;
+
+											char *old = chat_input;
+											chat_input = new_input;
+											free(old);
+											free(text);
+										}
+										GlobalUnlock(data);
+									}
+									CloseClipboard();
+								}
+								break;
+							}
+
+							goto def;
+						}
+						case 0x58: { // X
+							if (GetAsyncKeyState(VK_CONTROL) < 0) {
+								HGLOBAL buffer = GlobalAlloc(GMEM_MOVEABLE, chat_input_length + 1);
+								memcpy(GlobalLock(buffer), chat_input, chat_input_length + 1);
+								GlobalUnlock(buffer);
+								OpenClipboard(0);
+								EmptyClipboard();
+								SetClipboardData(CF_TEXT, buffer);
+								CloseClipboard();
+
+								chat_input_length = 0;
+								chat_input = (char *)realloc(chat_input, 1);
+								*chat_input = 0;
+								cursor_index = 0;
+								chat_input_alloc = 1;
+								break;
+							}
+
+							goto def;
+						}
+						default: { def:
 							char c = MapVirtualKeyA(lpMsg->wParam, MAPVK_VK_TO_CHAR);
 							if (c > 31 && c < 127) {
 								if (isalpha(c)) {
@@ -529,14 +634,6 @@ DWORD GetPlayerBase() {
 	return (DWORD)GetPointer(GetCurrentProcess(), 5, base_path, 0xCC, 0x4A4, 0x214, 0x00);
 }
 
-bool IsGameWindow(HWND hWnd) {
-	char title[0xFF] = { 0 };
-	char check[] = "Mirror's Edge";
-	GetWindowTextA(hWnd, title, 0xFF);
-
-	return memcmp(title, check, 13) == 0;
-}
-
 void WriteText(LPDIRECT3DDEVICE9 device, int pt, UINT weight, DWORD align, char *font, DWORD color, int x, int y, char *text, int length) {
 	LPD3DXFONT lpFont;
 	D3DXCreateFontA(device, pt, 0, weight, 1, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, font, &lpFont);
@@ -565,13 +662,41 @@ void DrawRect(LPDIRECT3DDEVICE9 pDevice, float x, float y, float width, float he
 __declspec(naked) void UpdateProjectionHook() {
 	__asm {
 		jp original
-			push eax
-			mov eax, ecx
-			mov projection_base, eax
-			pop eax
-			original :
+		push eax
+		mov eax, ecx
+		mov projection_base, eax
+		pop eax
+original:
 		jmp UpdateProjectionOriginal
 	}
+}
+
+
+int __cdecl CompareStringsHook(wchar_t *string1, wchar_t *string2) {
+	if (_wcsnicmp(string1, L"mp_actors", 9) == 0) {
+		wcscpy(string1, wlevel_name);
+	}
+
+	if (_wcsnicmp(string2, L"mp_actors", 9) == 0) {
+		wcscpy(string2, wlevel_name);
+	}
+
+	return _wcsicmp(string1, string2);
+}
+
+__declspec(naked) void CompareStringsPatch() {
+	__asm {
+		call ds : CompareStringsHook
+		jmp CompareStringsBack
+	}
+}
+
+DWORD *__fastcall CopyStringHook(int this_, void *idle_, wchar_t *src) {
+	if (!loading && _wcsnicmp(src, L"mp_actors", 9) == 0) {
+		return CopyStringOriginal(this_, wlevel_name);
+	}
+
+	return CopyStringOriginal(this_, src);
 }
 
 bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]) {
@@ -702,6 +827,7 @@ void ReHookListener() {
 	for (;;) {
 		if (*(unsigned char *)LevelLoadBase == 0xE9) {
 			TrampolineHook(LevelLoadHook, (void *)LevelLoadBase, (void **)&LevelLoadOriginal);
+			TrampolineHook(SublevelFinishLoadHook, (void *)SublevelFinishLoadBase, (void **)&SublevelFinishLoadOriginal);
 			return;
 		}
 
@@ -712,10 +838,53 @@ void ReHookListener() {
 HMODULE WINAPI LoadLibraryAHook(char *module) {
 	if (strstr(module, "menl_hooks.dll")) {
 		UnTrampolineHook((void *)LevelLoadBase, (void **)&LevelLoadOriginal);
+		UnTrampolineHook((void *)SublevelFinishLoadBase, (void **)&SublevelFinishLoadOriginal);
 		CreateThread(0, 0, (LPTHREAD_START_ROUTINE)ReHookListener, 0, 0, 0);
 	}
 
 	return LoadLibraryAOriginal(module);
+}
+
+DWORD Hash(char *str) {
+	DWORD h = (tolower(*str) ^ 0x4B9ACE2F) * 0x1000193;
+	int length = strlen(str);
+	for (int i = 1; i <= length; ++i) {
+		h = (tolower(*str) ^ h) * 0x1000193;
+	}
+	return h;
+}
+
+int GetInputWidth(LPD3DXFONT lpFont, char *str, int length) {
+	RECT trail = { 0 };
+	RECT s = { 0 };
+
+	for (int i = length - 1; i > -1; --i) {
+		if (!isblank(str[i])) {
+			++i;
+
+			HDC hDC = GetDC(NULL);
+			HFONT font = CreateFontA(25, 0, 0, 0, FW_NORMAL, false, false, false, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial");
+			SelectObject(hDC, font);
+			DrawTextA(hDC, str + i, length - i, &trail, DT_CALCRECT);
+			DeleteObject(font);
+			ReleaseDC(NULL, hDC);
+
+			break;
+		} else if (i == 0) {
+			HDC hDC = GetDC(NULL);
+			HFONT font = CreateFontA(25, 0, 0, 0, FW_NORMAL, false, false, false, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial");
+			SelectObject(hDC, font);
+			DrawTextA(hDC, str + i, length - i, &trail, DT_CALCRECT);
+			DeleteObject(font);
+			ReleaseDC(NULL, hDC);
+
+			break;
+		}
+	}
+
+	lpFont->DrawTextA(NULL, str, length, &s, DT_CALCRECT, D3DCOLOR_ARGB(0, 0, 0, 0));
+
+	return (s.right - s.left) + (trail.right - trail.left);
 }
 
 void PrintMatrix(float m[4][4]) {
@@ -740,6 +909,8 @@ void MainThread() {
 		players[i].name = (char *)calloc(33, 1);
 	}
 
+	while (!GetModuleHandleA("d3d9.dll")) Sleep(1);
+
 	MODULEENTRY32 module = GetModuleInfoByName(GetCurrentProcessId(), L"MirrorsEdge.exe");
 	base_path = (DWORD)ProcessFindPattern(GetCurrentProcess(), module.modBaseAddr, module.modBaseSize, "\x89\x0D\x00\x00\x00\x00\xB9\x00\x00\x00\x00\xFF", "xx????x????x");
 	base_path = ReadInt(GetCurrentProcess(), (void *)(base_path + 2));
@@ -747,44 +918,66 @@ void MainThread() {
 	DWORD addr;
 	char disassembled[0xFF];
 
+	// 0x11C6A70
+	addr = LevelLoadBase = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x6A\xFF\x68\x00\x00\x00\x00\x64\xA1\x00\x00\x00\x00\x50\x81\xEC\x00\x00\x00\x00\x53\x55\x56\x57\xA1\x00\x00\x00\x00\x33\xC4\x50\x8D\x84\x24\x00\x00\x00\x00\x64\xA3\x00\x00\x00\x00\x8B\xE9\x89\x6C\x24\x00\x00\xFF\x89", "???????xxxxxxxxx?xxxxxxxx????xxxxxx?xxxxxxxxxxxxxx??xx");
+	TrampolineHook(LevelLoadHook, (void *)addr, (void **)&LevelLoadOriginal);
+	printf("level load: 0x%x\n", addr);
+
 	// 0xCF6AF0
 	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x8B\x11\x8B\x42\x08\x6A\x08\x6A\x00\x57\xFF\xD0\x89\x06\x5F\x8B\xC6\x5E\xC2\x04\x00\xCC\x8B\x44\x24\x04\x56\x50\x8B\xF1", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
 	addr -= 86;
 	Disassemble((unsigned char *)addr, 5, addr, disassembled);
 	sscanf(disassembled, "call 0x%x", (DWORD *)&CopyBones);
 	addr -= 20;
-	printf("update bones: 0x%x\n", addr);
 	TrampolineHook(UpdateBonesHook, (void *)addr, (void **)&UpdateBonesOriginal);
+	printf("update bones: 0x%x\n", addr);
 
 	// 0xB5F1F0
 	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x55\x8B\xEC\x83\xE4\xF0\x83\xEC\x38\x56\x57\x8B\x81\xFC\x00\x00\x00\xF3\x0F\x10\xB9\x5C\x01\x00\x00\xF3\x0F\x10\xB1\x58\x01\x00\x00\x8B\xD0\xC1\xFA\x02\x05\x00\x40\x00\x00\x81\xE2\xFF\x3F\x00\x00", "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-	printf("update actor: 0x%x\n", addr);
 	TrampolineHook(UpdateActorHook, (void *)addr, (void **)&UpdateActorOriginal);
-
-	// 0x11C6A70
-	addr = LevelLoadBase = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x6A\xFF\x68\x00\x00\x00\x00\x64\xA1\x00\x00\x00\x00\x50\x81\xEC\x00\x00\x00\x00\x53\x55\x56\x57\xA1\x00\x00\x00\x00\x33\xC4\x50\x8D\x84\x24\x00\x00\x00\x00\x64\xA3\x00\x00\x00\x00\x8B\xE9\x89\x6C\x24\x00\x00\xFF\x89", "???????xxxxxxxxx?xxxxxxxx????xxxxxx?xxxxxxxxxxxxxx??xx");
-	printf("level load: 0x%x\n", addr);
-	TrampolineHook(LevelLoadHook, (void *)addr, (void **)&LevelLoadOriginal);
+	printf("update actor: 0x%x\n", addr);
 
 	// 0xcd9c7b
 	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\xF3\x0F\x10\x11\xF3\x0F\x59\xCA\xF3\x0F\x58\xC1\xF3\x0F\x11\x64\x24\x1C\xF3\x0F\x11\x6C\x24\x20", "xxxxxxxxxxxxxxxxxxxxxxxx");
-	printf("update projection: 0x%x\n", addr);
 	TrampolineHook(UpdateProjectionHook, (void *)addr, (void **)&UpdateProjectionOriginal);
+	printf("update projection: 0x%x\n", addr);
 
 	// 0xFA99D0
 	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x6A\xFF\x68\x00\x00\x00\x00\x64\xA1\x00\x00\x00\x00\x50\x83\xEC\x28\x53\x55\x56\x57\xA1\x00\x00\x00\x00\x33\xC4\x50\x8D\x44\x24\x3C\x64\xA3\x00\x00\x00\x00\x89\x4C\x24\x18\x33\xDB\x89\x5C\x24\x14\x39\x99\xCC\x02\x00\x00", "xxx????xxxxxxxxxxxxxxx????xxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+	*(DWORD *)&ExecuteCommandOriginal = addr;
 	printf("execute command: 0x%x\n", addr);
-	ExecuteCommandOriginal = (void **(__thiscall *)(int, void **, int, int))addr;
 
+	// 0xff5d7d
 	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x8B\x01\xF3\x0F\x10\x98\x98\x00\x00\x00", "xxxxxxxxxx");
-	printf("get engine info: 0x%x\n", addr);
 	TrampolineHook(GetEngineInfoHook, (void *)addr, (void **)&GetEngineInfoOriginal);
+	printf("get engine info: 0x%x\n", addr);
 
+	// 0xECAA90
 	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x8B\x8E\xEC\x0B\x00\x00\x8B\x0C\x81\x3B\xCD\x74\x03\x09\x51\x60\x83\xC0\x01", "xxxxxxxxxxxxxxxxxxx");
-	printf("level stream command: 0x%x\n", addr);
 	WriteBuffer(GetCurrentProcess(), (void *)addr, "\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90", 16);
+	printf("level stream command: 0x%x\n", addr);
 
-	while (!GetModuleHandleA("d3d9.dll")) Sleep(1);
+	// 0x204e7d8
+	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x33\xC4\x50\x8D\x44\x24\x18\x64\xA3\x00\x00\x00\x00\x8B\xD9\x33\xED\x89\x6C\x24\x14\x8B\x03\x8B\x0D", "xxxxxxxxxxxxxxxxxxxxxxxxx");
+	string_table = ReadInt(GetCurrentProcess(), (void *)(addr + 25));
+	printf("string table: 0x%x\n", string_table);
+
+	// 0xB848A0
+	addr = SublevelFinishLoadBase = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x55\x8B\xEC\x83\xE4\xC0\x83\xEC\x34\x8B\x45\x08\x53\x56\x8B\xD9", "?????xxxxxxxxxxx");
+	TrampolineHook(SublevelFinishLoadHook, (void *)addr, (void **)&SublevelFinishLoadOriginal);
+	printf("sublevel finish load: 0x%x\n", addr);
+
+	// 0x114DA75
+	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\xFF\x15\x00\x00\x00\x00\x8B\x4C\x24\x40\x83\xC4\x08\xF7\xD8", "xx????xxxxxxxxx");
+	CompareStringsBack = addr + 6;
+	SetJMP((void *)CompareStringsPatch, (void *)addr, 0);
+	printf("compare strings: 0x%x\n", addr);
+
+	// 0x40BD90
+	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x55\x8B\xEC\x8B\x45\x08\x66\x83\x38\x00\x56\x8B\xF1", "xxxxxxxxxxxxx");
+	TrampolineHook(CopyStringHook, (void *)addr, (void **)&CopyStringOriginal);
+	printf("copy string: 0x%x\n", addr);
+
 	TrampolineHook(EndSceneHook, (void *)GetD3D9Exports()[D3D9_EXPORT_ENDSCENE], (void **)&EndSceneOriginal);
 
 	TrampolineHook(PeekMessageHook, PeekMessage, (void **)&PeekMessageOriginal);
@@ -834,12 +1027,45 @@ EXPORT void EXPORT_SetSendChatMessage(DWORD *in) {
 }
 
 EXPORT void EXPORT_AddChatMessage(char *msg) {
-	if (msg && strchr(msg, '\r')) {
-		*strchr(msg, '\r') = '\n';
+	if (msg) {
+		if (strchr(msg, '\r')) *strchr(msg, '\r') = '\n';
+
+		int length = strlen(msg);
+		if (length > 81) {
+			for (int i = 50; i < length; ++i) {
+				if (i > 69 && isblank(msg[i])) {
+					char *buffer = (char *)malloc(i + 2);
+					memcpy(buffer, msg, i);
+					buffer[i] = '\n';
+					buffer[i + 1] = 0;
+					EXPORT_AddChatMessage(buffer);
+					free(buffer);
+
+					msg += i + 1;
+					i = 0;
+					length = strlen(msg);
+				} else if (i > 79) {
+					char *buffer = (char *)malloc(i + 2);
+					memcpy(buffer, msg, i);
+					buffer[i] = '\n';
+					buffer[i + 1] = 0;
+					EXPORT_AddChatMessage(buffer);
+					free(buffer);
+
+					msg += i;
+					i = 0;
+					length = strlen(msg);
+				}
+			}
+		}
+
+		if (length < 1) {
+			return;
+		}
 
 		CHAT_MESSAGE m;
 		m.message = _strdup(msg);
-		m.message_length = strlen(msg);
+		m.message_length = length;
 		m.frame = 0;
 
 		ArrayPush(&chat_array_messages, &m);
@@ -859,7 +1085,6 @@ EXPORT void EXPORT_AddChatMessage(char *msg) {
 			}
 		}
 
-		DWORD length = strlen(msg);
 		chat_messages = (char *)realloc(chat_messages, chat_messages_length + length + 1);
 		strcpy(chat_messages + chat_messages_length, msg);
 		chat_messages_length += length;

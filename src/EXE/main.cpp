@@ -26,8 +26,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	freopen("CONOUT$", "w", stderr);
 #endif
 
-	LoadLibraryA("mdll.dll");
-	if (!GetModuleHandleA("mdll.dll")) {
+	if (!PathFileExistsA("mp_actors.me1")) {
+		MessageBoxA(0, "Unable to load the sublevel", "Error", MB_ICONWARNING);
+		printf("unable to load the sublevel\n");
+		return 1;
+	}
+
+	LoadLibraryA("MDLL.dll");
+	if (!GetModuleHandleA("MDLL.dll")) {
 		MessageBoxA(0, "Unable to load the DLL", "Error", MB_ICONWARNING);
 		printf("unable to load the DLL\n");
 		return 1;
@@ -136,7 +142,6 @@ void ParseMessage(char *buffer) {
 	}
 }
 
-
 void ProcessListener() {
 	DWORD pid, tpid;
 	for (pid = tpid = 0;;) {
@@ -155,9 +160,9 @@ void ProcessListener() {
 				base_path = (DWORD)ProcessFindPattern(process, module.modBaseAddr, module.modBaseSize, "\x89\x0D\x00\x00\x00\x00\xB9\x00\x00\x00\x00\xFF", "xx????x????x");
 				base_path = ReadInt(process, (void *)(base_path + 2));
 
-				if (!GetModuleInfoByName(pid, L"mdll.dll").dwSize) {
+				if (!GetModuleInfoByName(pid, L"MDLL.dll").dwSize) {
 					char path[MAX_PATH];
-					GetFullPathNameA("mdll.dll", MAX_PATH, path, NULL);
+					GetFullPathNameA("MDLL.dll", MAX_PATH, path, NULL);
 
 					LPVOID loadLibAddr = (LPVOID)GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA");
 					LPVOID arg = (LPVOID)VirtualAllocEx(process, NULL, strlen(path) + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
@@ -228,6 +233,9 @@ void Listener() {
 				packet.position[3] += 90;
 			}
 			WriteBuffer(process, (void *)(player.base + 0xE8), (char *)packet.position, sizeof(float) * 3);
+			if (fabs(packet.position[3]) > 200) {
+				packet.position[3] = 110;
+			}
 			WriteFloat(process, (void *)(player.base + 0x40), packet.position[3]);
 			WriteBuffer(process, (void *)(player.base + 0x100), (char *)packet.velocity, sizeof(float) * 3);
 			WriteInt(process, (void *)(player.base + 0xF8), packet.rotation);
@@ -275,7 +283,7 @@ void Sender() {
 			}
 			ReadBuffer(process, (void *)(player_base + 0xE8), (char *)packet.position, sizeof(float) * 3);
 			packet.position[2] += (float)fabs(ReadFloat(process, (void *)(player_base + 0x5D4)));
-			packet.position[3] = (ReadFloat(process, (void *)(player_base + 0x9B4)) - packet.position[2]) + 50;
+			packet.position[3] = (ReadFloat(process, (void *)(player_base + 0x9B4)) - packet.position[2]) + 40;
 
 			packet.rotation = ReadInt(process, (void *)(player_base + 0xF8)) % 0x10000;
 			packet.level = ReadInt(process, (void *)level);
@@ -371,12 +379,12 @@ HANDLE CallFunction(char *name, void *arg) {
 		return NULL;
 	}
 
-	int base = (int)GetModuleInfoByName(GetProcessId(process), L"mdll.dll").modBaseAddr;
+	int base = (int)GetModuleInfoByName(GetProcessId(process), L"MDLL.dll").modBaseAddr;
 	if (!base) {
 		return NULL;
 	}
 
-	int offset = (int)GetProcAddress(GetModuleHandleA("mdll.dll"), name) - (int)GetModuleHandleA("mdll.dll");
+	int offset = (int)GetProcAddress(GetModuleHandleA("MDLL.dll"), name) - (int)GetModuleHandleA("MDLL.dll");
 
 	return CreateRemoteThread(process, NULL, 0, (LPTHREAD_START_ROUTINE)(base + offset), arg, 0, NULL);
 }

@@ -28,6 +28,8 @@ DWORD GetPlayerBase();
 void ExecuteCommand(wchar_t *command);
 bool IsGameWindow(HWND);
 void PrintMatrix(float m[4][4]);
+DWORD Hash(char *str);
+int GetInputWidth(LPD3DXFONT lpFont, char *str, int length);
 
 #define CHAT_DELAY 800
 
