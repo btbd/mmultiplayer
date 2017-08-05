@@ -148,7 +148,7 @@ void ProcessListener() {
 		tpid = GetProcessInfoByName(L"MirrorsEdge.exe").th32ProcessID;
 		if (!tpid) {
 			process = 0;
-		} else if (pid != tpid && CopyMaps(tpid) && GetProcessThreadCount(tpid) > 30) {
+		} else if (pid != tpid && CopyMaps(tpid)/* && GetProcessThreadCount(tpid) >= 20*/) {
 			pid = tpid;
 			if (process) {
 				CloseHandle(process);
@@ -237,7 +237,7 @@ void Listener() {
 				packet.position[3] = 110;
 			}
 			WriteFloat(process, (void *)(player.base + 0x40), packet.position[3]);
-			WriteInt(process, (void *)(player.base + 0xF8), packet.rotation);
+			WriteFloat(process, (void *)(player.base + 0x5D4), 0);
 
 			ReadBuffer(process, (void *)player_bones, bones, BONES_SIZE);
 			for (int i = 0; i < BONE_OFFSET_COUNT; ++i) {
