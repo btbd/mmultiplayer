@@ -11,6 +11,7 @@ DWORD base_path = 0, LevelLoadBase = 0, SublevelFinishLoadBase = 0, CompareStrin
 bool loading = false;
 char level_name[0xFF] = { 0 };
 wchar_t wlevel_name[0xFF] = { 0 };
+RECORDING recordings[CHARACTER_COUNT * ACTORS_PER_CHARACTER] = { 0 };
 
 bool chat_mode = false;
 char *chat_input = (char *)calloc(1, 1);
@@ -86,6 +87,61 @@ int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
 				}
 			}
 
+			switch (recordings[i].state) {
+				case RECORDING_RECORDING: {
+					FRAME frame = { 0 };
+
+					ReadBuffer(GetCurrentProcess(), GetPointer(GetCurrentProcess(), 3, GetPlayerBase() + 0x5DC, 0x24C, 0x00), frame.bones, BONES_SIZE);
+					ReadBuffer(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xE8), (char *)frame.position, sizeof(float) * 3);
+					int character = i / ACTORS_PER_CHARACTER;
+					if (character == CHARACTER_KATE || character == CHARACTER_MILLER || character == CHARACTER_KREEG) {
+						frame.position[2] -= 90;
+					}
+					frame.position[2] += (float)fabs(ReadFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x5D4)));
+					frame.position[3] = (ReadFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x9B4)) - frame.position[2]) + 40;
+					frame.rotation = ReadShort(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xF8));
+					ArrayPush(&recordings[i].frames, &frame);
+
+					strcpy(recordings[i].username, settings.username);
+
+					break;
+				}
+				case RECORDING_PLAYING: {
+					if (recordings[i].frame >= recordings[i].frames.length) {
+						recordings[i].state = RECORDING_STOPPED;
+						recordings[i].frame = 0;
+						break;
+					}
+
+					FRAME *frame = (FRAME *)ArrayGet(&recordings[i].frames, recordings[i].frame++);
+					WriteBuffer(GetCurrentProcess(), players[i].bones, frame->bones, BONES_SIZE);
+					WriteBuffer(GetCurrentProcess(), x, (char *)frame->position, sizeof(float) * 3);
+					WriteFloat(GetCurrentProcess(), (void *)(this_ + 0x40), frame->position[3]);
+					WriteInt(GetCurrentProcess(), (void *)(this_ + 0xF8), frame->rotation);
+
+					strcpy(players[i].name, recordings[i].username);
+						
+					break;
+				}
+				case RECORDING_PAUSED: {
+					if (recordings[i].frame >= recordings[i].frames.length) {
+						recordings[i].state = RECORDING_STOPPED;
+						recordings[i].frame = 0;
+						break;
+					}
+
+					FRAME *frame = (FRAME *)ArrayGet(&recordings[i].frames, recordings[i].frame);
+					WriteBuffer(GetCurrentProcess(), players[i].bones, frame->bones, BONES_SIZE);
+					WriteBuffer(GetCurrentProcess(), x, (char *)frame->position, sizeof(float) * 3);
+					WriteFloat(GetCurrentProcess(), (void *)(this_ + 0x40), frame->position[3]);
+					WriteInt(GetCurrentProcess(), (void *)(this_ + 0xF8), frame->rotation);
+
+					strcpy(players[i].name, recordings[i].username);
+
+					break;
+				}
+			}
+
 			break;
 		}
 	}
@@ -102,7 +158,7 @@ int __fastcall UpdateBonesHook(int this_, void *idle_, int bones) {
 		int bone_count = (32 * *(DWORD *)(bones + 4));
 		if (bone_count == 0xD80 || bone_count == 0xCC0 || bone_count == 0xB00 || bone_count == 0xA20 || bone_count == 0x9E0) {
 			for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
-				if (players[i].base && players[i].level == level && players[i].ping < PING_TIMEOUT) {
+				if (players[i].base && ((players[i].level == level && players[i].ping < PING_TIMEOUT) || (recordings[i].state == RECORDING_PLAYING || recordings[i].state == RECORDING_PAUSED))) {
 					DWORD bones_base = ReadInt(GetCurrentProcess(), (void *)(players[i].base + 0x1C0));
 					if (bones_base) {
 						bones_base = ReadInt(GetCurrentProcess(), (void *)(bones_base + 0x24C));
@@ -219,7 +275,7 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 		D3DXCreateFontA(pDevice, 20, 0, FW_BOLD, 1, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial", &lpFont);
 
 		for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
-			if (players[i].base && level == players[i].level && players[i].ping < PING_TIMEOUT) {
+			if (players[i].base && ((level == players[i].level && players[i].ping < PING_TIMEOUT) || (recordings[i].state == RECORDING_PLAYING || recordings[i].state == RECORDING_PAUSED))) {
 				ReadBuffer(GetCurrentProcess(), (void *)(players[i].base + 0xE8), (char *)position, 3 * sizeof(float));
 				position[2] += ReadFloat(GetCurrentProcess(), (void *)(players[i].base + 0x40));
 
@@ -597,7 +653,116 @@ void HandleMessage(LPMSG lpMsg) {
 										}
 									}
 								}
-							} else {
+							} else if (chat_input_length > 9 && memcmp(chat_input, "/rec begin", 10) == 0) {
+								for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+									if (recordings[i].state == RECORDING_RECORDING) {
+										recordings[i].state = RECORDING_STOPPED;
+										recordings[i].frame = 0;
+									}
+								}
+
+								int index = settings.character * ACTORS_PER_CHARACTER;
+								int length = index + ACTORS_PER_CHARACTER;
+								for (; index < settings.character + length; ++index) {
+									if (recordings[index].frames.length == 0) {
+										break;
+									}
+								}
+
+								ArrayFree(&recordings[index].frames);
+								recordings[index].frames = ArrayNew(sizeof(FRAME));
+								recordings[index].level = level;
+								recordings[index].state = RECORDING_RECORDING;
+								recordings[index].frame = 0;
+							} else if (memcmp(chat_input, "/rec end", 8) == 0) {
+								for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+									if (recordings[i].state == RECORDING_RECORDING) {
+										recordings[i].state = RECORDING_STOPPED;
+										recordings[i].frame = 0;
+									}
+								}
+							} else if (memcmp(chat_input, "/rec delete ", 12) == 0) {
+								if (memcmp(chat_input + 12, "all", 3) == 0) {
+									for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++ i) {
+										ArrayFree(&recordings[i].frames);
+										recordings[i].frames = ArrayNew(sizeof(FRAME));
+										recordings[i].level = recordings[i].frame = 0;
+										recordings[i].state = RECORDING_STOPPED;
+									}
+								} else {
+									int index = atoi(chat_input + 12);
+									ArrayFree(&recordings[index].frames);
+									recordings[index].frames = ArrayNew(sizeof(FRAME));
+									recordings[index].level = recordings[index].frame = 0;
+									recordings[index].state = RECORDING_STOPPED;
+								}
+							} else if (memcmp(chat_input, "/rec play ", 10) == 0) {
+								if (memcmp(chat_input + 10, "all", 3) == 0) {
+									for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+										if (recordings[i].level == level && recordings[i].frames.length > 0) {
+											recordings[i].frame = 0;
+											recordings[i].state = RECORDING_PLAYING;
+										}
+									}
+								} else {
+									int index = atoi(chat_input + 10);
+									if (recordings[index].level == level && recordings[index].frames.length > 0) {
+										recordings[index].frame = 0;
+										recordings[index].state = RECORDING_PLAYING;
+									}
+								}
+							} else if (memcmp(chat_input, "/rec stop ", 10) == 0) {
+								if (memcmp(chat_input + 10, "all", 3) == 0) {
+									for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+										recordings[i].state = RECORDING_STOPPED;
+										recordings[i].frame = 0;
+									}
+								} else {
+									int index = atoi(chat_input + 10);
+									recordings[index].state = RECORDING_STOPPED;
+									recordings[index].frame = 0;
+								}
+							} else if (memcmp(chat_input, "/rec pause ", 11) == 0) {
+								if (memcmp(chat_input + 11, "all", 3) == 0) {
+									for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+										if (recordings[i].level == level && recordings[i].frames.length > 0) {
+											recordings[i].state = RECORDING_PAUSED;
+										}
+									}
+								} else {
+									int index = atoi(chat_input + 11);
+									if (recordings[index].level == level && recordings[index].frames.length > 0) {
+										recordings[index].state = RECORDING_PAUSED;
+									}
+								}
+							} else if (memcmp(chat_input, "/rec unpause ", 13) == 0) {
+								if (memcmp(chat_input + 13, "all", 3) == 0) {
+									for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+										if (recordings[i].level == level && recordings[i].frames.length > 0) {
+											recordings[i].state = RECORDING_PLAYING;
+										}
+									}
+								} else {
+									int index = atoi(chat_input + 13);
+									if (recordings[index].level == level && recordings[index].frames.length > 0) {
+										recordings[index].state = RECORDING_PLAYING;
+									}
+								}
+							} else if (memcmp(chat_input, "/rec list", 9) == 0) {
+								char msg[0xFFF] = { 0 };
+
+								sprintf(msg, "Recording List - Level 0x%x:\n", level);
+								EXPORT_AddChatMessage(msg);
+								
+								for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+									if (recordings[i].frames.length > 0) {
+										sprintf(msg, "    %d - Duration %d - Level 0x%x - %s\n", i, recordings[i].frames.length, recordings[i].level, CHARACTER_NAMES[(int)(i / ACTORS_PER_CHARACTER)]);
+										EXPORT_AddChatMessage(msg);
+									}
+								}
+
+								EXPORT_AddChatMessage("End of Recording List\n");
+							}  else {
 								wchar_t *command = (wchar_t *)malloc((chat_input_length + 2) * sizeof(wchar_t));
 								CharToWChar(command, chat_input + 1);
 								command[chat_input_length - 1] = '\r';
@@ -907,6 +1072,10 @@ void MainThread() {
 		players[i].base = players[i].level = players[i].ping = 0;
 		players[i].bones = (char *)calloc(BONES_SIZE, 1);
 		players[i].name = (char *)calloc(33, 1);
+	}
+
+	for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+		recordings[i].frames = ArrayNew(sizeof(FRAME));
 	}
 
 	while (!GetModuleHandleA("d3d9.dll")) Sleep(1);

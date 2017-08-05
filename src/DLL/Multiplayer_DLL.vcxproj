@@ -145,9 +145,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <Text Include="ReadMe.txt" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="memory.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>

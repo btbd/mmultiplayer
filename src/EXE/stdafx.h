@@ -31,7 +31,6 @@ typedef struct {
 	char index; // Player's index in the list of players
 	char bones[BONE_OFFSET_COUNT * 2]; // Player's bones
 	float position[4]; // Player's position (x, y, z)
-	float velocity[3]; // Player's velocity (x, y, z)
 	short rotation; // Player's rotation (0-65535)
 
 	DWORD level; // Player's current level

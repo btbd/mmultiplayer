@@ -16,6 +16,16 @@
 #define BONES_SIZE 0xD80
 #define SIGN(a) (a < 0 ? -1 : 1)
 
+extern "C" {
+	#include "memory.h"
+
+	EXPORT void EXPORT_GetPlayersBase(DWORD *out);
+	EXPORT void EXPORT_GetLevelBase(DWORD *out);
+	EXPORT void EXPORT_SetHostPID(DWORD *in);
+	EXPORT void EXPORT_SetSendChatMessage(DWORD *in);
+	EXPORT void EXPORT_AddChatMessage(char *msg);
+}
+
 typedef struct {
 	float x, y, z, rhw;
 	DWORD color;
@@ -55,6 +65,26 @@ typedef struct {
 	bool collision, nametags, chat, spectator;
 } SETTINGS;
 
+typedef struct {
+	char bones[BONES_SIZE];
+	float position[4];
+	short rotation;
+} FRAME;
+
+enum {
+	RECORDING_STOPPED = 0,
+	RECORDING_RECORDING,
+	RECORDING_PAUSED,
+	RECORDING_PLAYING
+};
+
+typedef struct {
+	char username[33];
+	char state;
+	DWORD level, frame;
+	ARRAY frames;
+} RECORDING; 
+
 enum {
 	CHARACTER_FAITH = 0,
 	CHARACTER_KATE,
@@ -68,18 +98,20 @@ enum {
 	CHARACTER_COUNT
 };
 
+static char CHARACTER_NAMES[][0xFF] = {
+	"Faith",
+	"Kate",
+	"Celeste",
+	"Assault Celeste",
+	"Jacknife",
+	"Miller",
+	"Kreeg",
+	"Cop Pursuit",
+	"Ghost"
+};
+
 #define ACTORS_PER_CHARACTER 8
-#define PING_TIMEOUT 50
+#define PING_TIMEOUT 100
 #define PI 3.141592653589793
 #define PLAYER_HEIGHT ((float)185)
 #define PLAYER_RADIUS ((float)40)
-
-extern "C" {
-	#include "memory.h"
-
-	EXPORT void EXPORT_GetPlayersBase(DWORD *out);
-	EXPORT void EXPORT_GetLevelBase(DWORD *out);
-	EXPORT void EXPORT_SetHostPID(DWORD *in);
-	EXPORT void EXPORT_SetSendChatMessage(DWORD *in);
-	EXPORT void EXPORT_AddChatMessage(char *msg);
-}
