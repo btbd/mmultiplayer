@@ -237,7 +237,6 @@ void Listener() {
 				packet.position[3] = 110;
 			}
 			WriteFloat(process, (void *)(player.base + 0x40), packet.position[3]);
-			WriteFloat(process, (void *)(player.base + 0x5D4), 0);
 
 			ReadBuffer(process, (void *)player_bones, bones, BONES_SIZE);
 			for (int i = 0; i < BONE_OFFSET_COUNT; ++i) {
