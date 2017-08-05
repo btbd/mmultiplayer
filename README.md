@@ -81,6 +81,10 @@ When compiling either the DLL or EXE to test your contributions, be sure that th
 
 In addition, be sure the compiler configuration is set to `Release` instead of `Debug` for faster optimization, and be sure that the compiler configuration is set to `x86` because Mirror's Edge is a 32-bit application.
 
+For the DLL, you will need to include the DirectX 9 Library. You can download the SDK from here: https://www.microsoft.com/en-us/download/confirmation.aspx?id=6812
+
+Once downloaded and installed, open the DLL project in Visual Studio and go to `Project -> Project Properties -> Configuration Properties -> VC++ Directories` and add the SDK include and library directories accordingly.
+
 ### Server
 
 The server is written in NodeJS. Currently, testing the server locally isn't easily supported, so it's not recommended to contribute to the sever. If the server needs something, make a pull request or issue.
