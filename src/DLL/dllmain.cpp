@@ -338,13 +338,6 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 			lpFont->DrawTextA(NULL, "|", 1, &r, DT_NOCLIP | DT_LEFT, D3DCOLOR_ARGB(255, 255, 255, 255));
 		}
 
-		for (DWORD i = 0; i < chat_array_messages.length; ++i) {
-			CHAT_MESSAGE *m = (CHAT_MESSAGE *)ArrayGet(&chat_array_messages, i);
-			if (m->frame < CHAT_DELAY) {
-				++m->frame;
-			}
-		}
-
 		int offset = 0;
 		for (char *c = chat_messages; *c; ++c) {
 			if (*c == '\n') offset += 25;
@@ -368,7 +361,6 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 		for (int i = chat_array_messages.length - 1; i > -1; --i) {
 			CHAT_MESSAGE *m = (CHAT_MESSAGE *)ArrayGet(&chat_array_messages, i);
 			if (m->frame < CHAT_DELAY) {
-				++m->frame;
 				y -= 25;
 				DWORD tc, bc;
 				if (m->frame > CHAT_DELAY - 50) {
@@ -397,6 +389,13 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 		}
 
 		lpFont->Release();
+	}
+
+	for (DWORD i = 0; i < chat_array_messages.length; ++i) {
+		CHAT_MESSAGE *m = (CHAT_MESSAGE *)ArrayGet(&chat_array_messages, i);
+		if (m->frame < CHAT_DELAY) {
+			++m->frame;
+		}
 	}
 
 	return ret;
@@ -605,19 +604,17 @@ void HandleMessage(LPMSG lpMsg) {
 				break;
 			case WM_KEYUP: {
 				if (!chat_mode) {
-					switch (lpMsg->wParam) {
-						case VK_OEM_2:
-							if (chat_input_length == 0) {
-								chat_input = (char *)realloc(chat_input, 2);
-								chat_input[chat_input_length] = '/';
-								chat_input[++chat_input_length] = 0;
-								chat_input_alloc = 2;
-								++cursor_index;
-							}
-						case 0x59:
-							chat_mode = true;
-							previous_message_index = previous_messages.length;
-							break;
+					if (lpMsg->wParam == VK_OEM_2 && chat_input_length == 0) {
+						chat_input = (char *)realloc(chat_input, 2);
+						chat_input[chat_input_length] = '/';
+						chat_input[++chat_input_length] = 0;
+						chat_input_alloc = 2;
+						++cursor_index;
+						chat_mode = true;
+						previous_message_index = previous_messages.length;
+					} else if (lpMsg->wParam == settings.keybind) {
+						chat_mode = true;
+						previous_message_index = previous_messages.length;
 					}
 				} else {
 					lpMsg->message = WM_NULL;
@@ -1157,6 +1154,7 @@ void MainThread() {
 	TrampolineHook(GetMessageAHook, GetMessageA, (void **)&GetMessageAOriginal);
 	TrampolineHook(LoadLibraryAHook, LoadLibraryA, (void **)&LoadLibraryAOriginal);
 
+	// Scan for settings just incase update isn't called
 	for (;;) {
 		char path[0xFF];
 		GetTempPathA(0xFF, path);
@@ -1167,7 +1165,18 @@ void MainThread() {
 			fclose(file);
 		}
 
-		Sleep(1000);
+		Sleep(2000);
+	}
+}
+
+EXPORT void EXPORT_UpdateSettings() {
+	char path[0xFF];
+	GetTempPathA(0xFF, path);
+	strcat(path, "multiplayer.settings");
+	FILE *file = fopen(path, "rb");
+	if (file) {
+		fread(&settings, sizeof(SETTINGS), 1, file);
+		fclose(file);
 	}
 }
 

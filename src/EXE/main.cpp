@@ -307,9 +307,6 @@ bool CopyMaps(DWORD pid) {
 
 	char to[0xFF];
 	char from[0xFF];
-	HANDLE token;
-	TOKEN_ELEVATION elev;
-	DWORD tRet = sizeof(elev);
 
 	int l = GetModuleFileNameExA(process, NULL, to, 0xFF) - 1;
 	printf("game exe path: %s\n", to);
@@ -321,10 +318,7 @@ bool CopyMaps(DWORD pid) {
 	GetCurrentDirectoryA(0xFF, from);
 	strcat(from, "\\mp_actors.me1");
 
-	OpenProcessToken(process, TOKEN_QUERY, &token);
-	GetTokenInformation(token, TokenElevation, &elev, sizeof(elev), &tRet);
-
-	if (elev.TokenIsElevated && PathFileExistsA(to) && GetFileSize(to) == GetFileSize(from)) {
+	if (PathFileExistsA(to) && GetFileSize(to) == GetFileSize(from)) {
 		CloseHandle(process);
 		return true;
 	}
@@ -344,10 +338,26 @@ bool CopyMaps(DWORD pid) {
 
 	GetModuleFileNameExA(process, NULL, to, 0xFF);
 
+	HANDLE token;
+	TOKEN_ELEVATION elev;
+	DWORD tRet = sizeof(elev);
+
+	OpenProcessToken(process, TOKEN_QUERY, &token);
+	GetTokenInformation(token, TokenElevation, &elev, sizeof(elev), &tRet);
+
 	TerminateProcess(process, 0);
 	CloseHandle(process);
+	
+	if (elev.TokenIsElevated) {
+		ShellExecuteA(0, "runas", to, 0, 0, SW_HIDE);
+	} else {
+		STARTUPINFOA si = { 0 };
+		PROCESS_INFORMATION pi = { 0 };
 
-	ShellExecuteA(0, "runas", to, 0, 0, SW_HIDE);
+		si.cb = sizeof(si);
+
+		CreateProcessA(to, 0, 0, 0, 0, 0, 0, 0, &si, &pi);
+	}
 
 	return false;
 }

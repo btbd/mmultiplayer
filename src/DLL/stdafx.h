@@ -19,6 +19,7 @@
 extern "C" {
 	#include "memory.h"
 
+	EXPORT void EXPORT_UpdateSettings();
 	EXPORT void EXPORT_GetPlayersBase(DWORD *out);
 	EXPORT void EXPORT_GetLevelBase(DWORD *out);
 	EXPORT void EXPORT_SetHostPID(DWORD *in);
@@ -63,6 +64,7 @@ typedef struct {
 	DWORD room;
 	char character;
 	bool collision, nametags, chat, spectator;
+	unsigned char keybind;
 } SETTINGS;
 
 typedef struct {

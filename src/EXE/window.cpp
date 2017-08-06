@@ -31,6 +31,8 @@ void WindowThread() {
 }
 
 INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) {
+	static unsigned char keybind;
+
 	switch (message) { 
 		case WM_INITDIALOG: {
 			char path[0xFF];
@@ -45,6 +47,7 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 				s.character = 0;
 				s.chat = s.collision = s.nametags = true;
 				s.spectator = false;
+				s.keybind = 0x59;
 				fwrite(&s, sizeof(SETTINGS), 1, file);
 			} else {
 				fread(&s, sizeof(SETTINGS), 1, file);
@@ -59,6 +62,14 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 			SetDlgItemTextA(hDlg, IDC_USERNAME, s.username);
 			sprintf(path, "%d", s.room);
 			SetDlgItemTextA(hDlg, IDC_ROOM, path);
+			keybind = s.keybind;
+
+			for (int i = 0; i < sizeof(KEYS) / sizeof(KEYS[0]); ++i) {
+				if (KEYS[i].code == keybind) {
+					SetDlgItemTextA(hDlg, IDC_KEYBIND, KEYS[i].name);
+					break;
+				}
+			}
 
 			HWND model = GetDlgItem(hDlg, IDC_MODEL);
 			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Faith");
@@ -90,6 +101,7 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 					s.nametags = !!IsDlgButtonChecked(hDlg, IDC_NAMETAGS);
 					s.spectator = !!IsDlgButtonChecked(hDlg, IDC_SPECTATOR);
 					s.character = (char)SendMessage(GetDlgItem(hDlg, IDC_MODEL), CB_GETCURSEL, 0, 0);
+					s.keybind = keybind;
 
 					char buffer[0xFF];
 					GetDlgItemTextA(hDlg, IDC_ROOM, buffer, 0xFF);
@@ -97,6 +109,31 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 
 					SaveSettings(&s, false);
 
+					CallFunction("EXPORT_UpdateSettings", 0);
+
+					break;
+				}
+				case IDC_KEYBIND: {
+					for (;;) {
+						for (int i = 0; i <= 0xFF; ++i) {
+							if (GetAsyncKeyState(i) < 0) {
+								for (int e = 0; e < sizeof(KEYS) / sizeof(KEYS[0]); ++e) {
+									if (KEYS[e].code == i) {
+										keybind = i;
+										SetDlgItemTextA(hDlg, IDC_KEYBIND, KEYS[e].name);
+										goto leave;
+									}
+								}
+							}
+						}
+						Sleep(1);
+					}
+				leave:
+					break;
+				}
+				case IDC_CLEAR: {
+					keybind = 0x1A;
+					SetDlgItemTextA(hDlg, IDC_KEYBIND, "");
 					break;
 				}
 			}
