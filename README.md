@@ -5,6 +5,7 @@
 2. Run `MMultiplayer.exe`. 
 	- Note: After the first time you run the Multiplayer Mod and it successfully attaches to Mirror's Edge, you can technically start the Multiplayer Mod after Mirror's Edge is running when at the Main Menu. However, if you experience any issues, try starting the Multiplayer Mod before Mirror's Edge.
 3. Run Mirror's Edge.
+4. Note: The Multiplayer Mod should automatically run Mirror's Edge in administrator mode. Any other programs that attach to it (trainers, autosplitters, etc.) should also be ran in administrator mode to work properly.
 
 When you first run the Multiplayer Mod, you may see this message: http://i.imgur.com/iXNHhYI.png. If you do, click "More info" then "Run anyway".
 

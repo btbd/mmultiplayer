@@ -43,106 +43,105 @@ BOOL(WINAPI *GetMessageAOriginal)(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UI
 HMODULE(WINAPI *LoadLibraryAOriginal)(char *);
 
 int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
-	float *x = (float *)(this_ + 0xE8);
-	float *y = (float *)(this_ + 0xEC);
-	float *z = (float *)(this_ + 0xF0);
-	float *vx = (float *)(this_ + 0x100);
-	float *vy = (float *)(this_ + 0x104);
-	float *vz = (float *)(this_ + 0x108);
+	if (!loading) {
+		float *x = (float *)(this_ + 0xE8);
+		float *y = (float *)(this_ + 0xEC);
+		float *z = (float *)(this_ + 0xF0);
 
-	for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
-		if (!players[i].base && *x == -237887 - i * 10 && *y == 107302 && *z == 192292) {
-			players[i].base = this_;
-		}
+		for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
+			if (!players[i].base && *x == -237887 - i * 10 && *y == 107302 && *z == 192292) {
+				players[i].base = this_;
+			}
 
-		if (players[i].base == this_) {
-			if (level != players[i].level || players[i].ping >= PING_TIMEOUT) {
-				*x = -237887 - (float)i * 10;
-				*y = 107302;
-				*z = 192292;
-				players[i].level = 0;
-				players[i].ping = PING_TIMEOUT;
-			} else {
-				++players[i].ping;
+			if (players[i].base == this_) {
+				if (level != players[i].level || players[i].ping >= PING_TIMEOUT) {
+					*x = -237887 - (float)i * 10;
+					*y = 107302;
+					*z = 192292;
+					players[i].level = 0;
+					players[i].ping = PING_TIMEOUT;
+				} else {
+					++players[i].ping;
 
-				DWORD base = GetPlayerBase();
-				if (settings.collision && base) {
-					float pz = ReadFloat(GetCurrentProcess(), (void *)(base + 0xF0));
-					if (pz <= *z + (ReadFloat(GetCurrentProcess(), (void *)(base + 0x5D4)) != 0 ? 0 : PLAYER_HEIGHT) && pz >= *z - PLAYER_HEIGHT) {
-						float px = ReadFloat(GetCurrentProcess(), (void *)(base + 0xE8));
-						float py = ReadFloat(GetCurrentProcess(), (void *)(base + 0xEC));
-						float dx = px - *x;
-						float dy = py - *y;
-						if (sqrt(dx * dx + dy * dy) <= PLAYER_RADIUS * 2) {
-							float mx = (px + *x) / 2;
-							float my = (py + *y) / 2;
-							float angle = (float)atan2(dy, dx);
+					DWORD base = GetPlayerBase();
+					if (settings.collision && base) {
+						float pz = ReadFloat(GetCurrentProcess(), (void *)(base + 0xF0));
+						if (pz <= *z + (ReadFloat(GetCurrentProcess(), (void *)(base + 0x5D4)) != 0 ? 0 : PLAYER_HEIGHT) && pz >= *z - PLAYER_HEIGHT) {
+							float px = ReadFloat(GetCurrentProcess(), (void *)(base + 0xE8));
+							float py = ReadFloat(GetCurrentProcess(), (void *)(base + 0xEC));
+							float dx = px - *x;
+							float dy = py - *y;
+							if (sqrt(dx * dx + dy * dy) <= PLAYER_RADIUS * 2) {
+								float mx = (px + *x) / 2;
+								float my = (py + *y) / 2;
+								float angle = (float)atan2(dy, dx);
 
-							WriteFloat(GetCurrentProcess(), (void *)(base + 0xE8), mx + (float)cos(angle) * (PLAYER_RADIUS + 1));
-							WriteFloat(GetCurrentProcess(), (void *)(base + 0xEC), my + (float)sin(angle) * (PLAYER_RADIUS + 1));
-							WriteFloat(GetCurrentProcess(), (void *)(base + 0x100), ReadFloat(GetCurrentProcess(), (void *)(base + 0x100)) * (float)0.1);
-							WriteFloat(GetCurrentProcess(), (void *)(base + 0x104), ReadFloat(GetCurrentProcess(), (void *)(base + 0x104)) * (float)0.1);
+								WriteFloat(GetCurrentProcess(), (void *)(base + 0xE8), mx + (float)cos(angle) * (PLAYER_RADIUS + 1));
+								WriteFloat(GetCurrentProcess(), (void *)(base + 0xEC), my + (float)sin(angle) * (PLAYER_RADIUS + 1));
+								WriteFloat(GetCurrentProcess(), (void *)(base + 0x100), ReadFloat(GetCurrentProcess(), (void *)(base + 0x100)) * (float)0.1);
+								WriteFloat(GetCurrentProcess(), (void *)(base + 0x104), ReadFloat(GetCurrentProcess(), (void *)(base + 0x104)) * (float)0.1);
+							}
 						}
 					}
 				}
-			}
 
-			switch (recordings[i].state) {
-				case RECORDING_RECORDING: {
-					FRAME frame = { 0 };
+				switch (recordings[i].state) {
+					case RECORDING_RECORDING: {
+						FRAME frame = { 0 };
 
-					ReadBuffer(GetCurrentProcess(), GetPointer(GetCurrentProcess(), 3, GetPlayerBase() + 0x5DC, 0x24C, 0x00), frame.bones, BONES_SIZE);
-					ReadBuffer(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xE8), (char *)frame.position, sizeof(float) * 3);
-					int character = i / ACTORS_PER_CHARACTER;
-					if (character == CHARACTER_KATE || character == CHARACTER_MILLER || character == CHARACTER_KREEG) {
-						frame.position[2] -= 90;
-					}
-					frame.position[2] += (float)fabs(ReadFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x5D4)));
-					frame.position[3] = (ReadFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x9B4)) - frame.position[2]) + 40;
-					frame.rotation = ReadShort(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xF8));
-					ArrayPush(&recordings[i].frames, &frame);
+						ReadBuffer(GetCurrentProcess(), GetPointer(GetCurrentProcess(), 3, GetPlayerBase() + 0x5DC, 0x24C, 0x00), frame.bones, BONES_SIZE);
+						ReadBuffer(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xE8), (char *)frame.position, sizeof(float) * 3);
+						int character = i / ACTORS_PER_CHARACTER;
+						if (character == CHARACTER_KATE || character == CHARACTER_MILLER || character == CHARACTER_KREEG) {
+							frame.position[2] -= 90;
+						}
+						frame.position[2] += (float)fabs(ReadFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x5D4)));
+						frame.position[3] = (ReadFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x9B4)) - frame.position[2]) + 40;
+						frame.rotation = ReadShort(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xF8));
+						ArrayPush(&recordings[i].frames, &frame);
 
-					strcpy(recordings[i].username, settings.username);
+						strcpy(recordings[i].username, settings.username);
 
-					break;
-				}
-				case RECORDING_PLAYING: {
-					if (recordings[i].frame >= recordings[i].frames.length) {
-						recordings[i].state = RECORDING_STOPPED;
-						recordings[i].frame = 0;
 						break;
 					}
+					case RECORDING_PLAYING: {
+						if (recordings[i].frame >= recordings[i].frames.length) {
+							recordings[i].state = RECORDING_STOPPED;
+							recordings[i].frame = 0;
+							break;
+						}
 
-					FRAME *frame = (FRAME *)ArrayGet(&recordings[i].frames, recordings[i].frame++);
-					WriteBuffer(GetCurrentProcess(), players[i].bones, frame->bones, BONES_SIZE);
-					WriteBuffer(GetCurrentProcess(), x, (char *)frame->position, sizeof(float) * 3);
-					WriteFloat(GetCurrentProcess(), (void *)(this_ + 0x40), frame->position[3]);
-					WriteInt(GetCurrentProcess(), (void *)(this_ + 0xF8), frame->rotation);
+						FRAME *frame = (FRAME *)ArrayGet(&recordings[i].frames, recordings[i].frame++);
+						WriteBuffer(GetCurrentProcess(), players[i].bones, frame->bones, BONES_SIZE);
+						WriteBuffer(GetCurrentProcess(), x, (char *)frame->position, sizeof(float) * 3);
+						WriteFloat(GetCurrentProcess(), (void *)(this_ + 0x40), frame->position[3]);
+						WriteInt(GetCurrentProcess(), (void *)(this_ + 0xF8), frame->rotation);
 
-					strcpy(players[i].name, recordings[i].username);
-						
-					break;
-				}
-				case RECORDING_PAUSED: {
-					if (recordings[i].frame >= recordings[i].frames.length) {
-						recordings[i].state = RECORDING_STOPPED;
-						recordings[i].frame = 0;
+						strcpy(players[i].name, recordings[i].username);
+
 						break;
 					}
+					case RECORDING_PAUSED: {
+						if (recordings[i].frame >= recordings[i].frames.length) {
+							recordings[i].state = RECORDING_STOPPED;
+							recordings[i].frame = 0;
+							break;
+						}
 
-					FRAME *frame = (FRAME *)ArrayGet(&recordings[i].frames, recordings[i].frame);
-					WriteBuffer(GetCurrentProcess(), players[i].bones, frame->bones, BONES_SIZE);
-					WriteBuffer(GetCurrentProcess(), x, (char *)frame->position, sizeof(float) * 3);
-					WriteFloat(GetCurrentProcess(), (void *)(this_ + 0x40), frame->position[3]);
-					WriteInt(GetCurrentProcess(), (void *)(this_ + 0xF8), frame->rotation);
+						FRAME *frame = (FRAME *)ArrayGet(&recordings[i].frames, recordings[i].frame);
+						WriteBuffer(GetCurrentProcess(), players[i].bones, frame->bones, BONES_SIZE);
+						WriteBuffer(GetCurrentProcess(), x, (char *)frame->position, sizeof(float) * 3);
+						WriteFloat(GetCurrentProcess(), (void *)(this_ + 0x40), frame->position[3]);
+						WriteInt(GetCurrentProcess(), (void *)(this_ + 0xF8), frame->rotation);
 
-					strcpy(players[i].name, recordings[i].username);
+						strcpy(players[i].name, recordings[i].username);
 
-					break;
+						break;
+					}
 				}
-			}
 
-			break;
+				break;
+			}
 		}
 	}
 
@@ -150,7 +149,7 @@ int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
 }
 
 int __fastcall UpdateBonesHook(int this_, void *idle_, int bones) {
-	if (this_ != bones && *(DWORD *)(bones + 4) > 0) {
+	if (!loading && this_ != bones && *(DWORD *)(bones + 4) > 0) {
 		CopyBones(this_, *(DWORD *)(bones + 4));
 		memcpy(*(void **)this_, *(const void **)bones, 32 * *(DWORD *)(bones + 4));
 		*(DWORD *)(this_ + 4) = *(DWORD *)(bones + 4);
@@ -234,6 +233,7 @@ int __fastcall LevelLoadHook(void *this_, void *idle_, int a2, __int64 a3) {
 
 	wcscpy(wlevel_name, *(wchar_t **)(a2 + 0x1C));
 	WCharToChar(level_name, *(wchar_t **)(a2 + 0x1C));
+	level = Hash(level_name);
 
 	int ret = LevelLoadOriginal(this_, a2, a3);
 
@@ -241,7 +241,6 @@ int __fastcall LevelLoadHook(void *this_, void *idle_, int a2, __int64 a3) {
 		ExecuteCommand(L"streammap mp_actors\r\n");
 	}
 
-	level = Hash(level_name);
 	printf("loaded %s - 0x%x\n", level_name, level);
 
 	return ret;
@@ -250,7 +249,7 @@ int __fastcall LevelLoadHook(void *this_, void *idle_, int a2, __int64 a3) {
 int __fastcall SublevelFinishLoadHook(DWORD *this_, void *idle_, int a2, int a3) {
 	int ret = SublevelFinishLoadOriginal(this_, a2, a3);
 
-	if (ReadChar(GetCurrentProcess(), (void *)(a2 + 0x60)) & 0x80 && string_table) {
+	if (loading && ReadChar(GetCurrentProcess(), (void *)(a2 + 0x60)) & 0x80 && string_table) {
 		wchar_t *name = (wchar_t *)GetPointer(GetCurrentProcess(), 3, string_table, ReadInt(GetCurrentProcess(), (void *)(a2 + 0x3C)) * 4, 0x10);
 		if (name && _wcsnicmp(name, L"mp_actors", 9) == 0) {
 			loading = false;
@@ -946,8 +945,8 @@ void ExecuteCommand(wchar_t *command) {
 __declspec(naked) void GetEngineInfoHook() {
 	__asm {
 		mov eax, [ecx]
-			mov engine_info, eax
-			jmp GetEngineInfoOriginal
+		mov engine_info, eax
+		jmp GetEngineInfoOriginal
 	}
 }
 
@@ -990,7 +989,7 @@ BOOL WINAPI GetMessageAHook(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMs
 // Work around for Fatalis's autosplitter
 void ReHookListener() {
 	for (;;) {
-		if (*(unsigned char *)LevelLoadBase == 0xE9) {
+		if (*(unsigned char *)LevelLoadBase == 0xE9 && *(unsigned char *)SublevelFinishLoadBase == 0xE9) {
 			TrampolineHook(LevelLoadHook, (void *)LevelLoadBase, (void **)&LevelLoadOriginal);
 			TrampolineHook(SublevelFinishLoadHook, (void *)SublevelFinishLoadBase, (void **)&SublevelFinishLoadOriginal);
 			return;
@@ -1200,9 +1199,9 @@ EXPORT void EXPORT_AddChatMessage(char *msg) {
 		if (strchr(msg, '\r')) *strchr(msg, '\r') = '\n';
 
 		int length = strlen(msg);
-		if (length > 81) {
+		if (length > 61) {
 			for (int i = 50; i < length; ++i) {
-				if (i > 69 && isblank(msg[i])) {
+				if (i > 49 && isblank(msg[i])) {
 					char *buffer = (char *)malloc(i + 2);
 					memcpy(buffer, msg, i);
 					buffer[i] = '\n';
@@ -1213,7 +1212,7 @@ EXPORT void EXPORT_AddChatMessage(char *msg) {
 					msg += i + 1;
 					i = 0;
 					length = strlen(msg);
-				} else if (i > 79) {
+				} else if (i > 59) {
 					char *buffer = (char *)malloc(i + 2);
 					memcpy(buffer, msg, i);
 					buffer[i] = '\n';

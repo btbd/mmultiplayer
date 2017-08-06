@@ -212,7 +212,7 @@ void Listener() {
 	int length = 0;
 	DWORD base = 0, player_bones = 0;
 
-	char bones[BONES_SIZE];
+	char bones[BONES_SIZE] = { 0 };
 
 	for (;;) {
 		client_size = sizeof(client);
@@ -237,6 +237,7 @@ void Listener() {
 				packet.position[3] = 110;
 			}
 			WriteFloat(process, (void *)(player.base + 0x40), packet.position[3]);
+			WriteInt(process, (void *)(player.base + 0xF8), packet.rotation);
 
 			ReadBuffer(process, (void *)player_bones, bones, BONES_SIZE);
 			for (int i = 0; i < BONE_OFFSET_COUNT; ++i) {
@@ -306,6 +307,9 @@ bool CopyMaps(DWORD pid) {
 
 	char to[0xFF];
 	char from[0xFF];
+	HANDLE token;
+	TOKEN_ELEVATION elev;
+	DWORD tRet = sizeof(elev);
 
 	int l = GetModuleFileNameExA(process, NULL, to, 0xFF) - 1;
 	printf("game exe path: %s\n", to);
@@ -317,7 +321,10 @@ bool CopyMaps(DWORD pid) {
 	GetCurrentDirectoryA(0xFF, from);
 	strcat(from, "\\mp_actors.me1");
 
-	if (PathFileExistsA(to) && GetFileSize(to) == GetFileSize(from)) {
+	OpenProcessToken(process, TOKEN_QUERY, &token);
+	GetTokenInformation(token, TokenElevation, &elev, sizeof(elev), &tRet);
+
+	if (elev.TokenIsElevated && PathFileExistsA(to) && GetFileSize(to) == GetFileSize(from)) {
 		CloseHandle(process);
 		return true;
 	}
@@ -338,14 +345,9 @@ bool CopyMaps(DWORD pid) {
 	GetModuleFileNameExA(process, NULL, to, 0xFF);
 
 	TerminateProcess(process, 0);
-
-	STARTUPINFOA si = { 0 };
-	PROCESS_INFORMATION pi = { 0 };
-
-	si.cb = sizeof(si);
-
-	CreateProcessA(to, 0, 0, 0, 0, 0, 0, 0, &si, &pi);
 	CloseHandle(process);
+
+	ShellExecuteA(0, "runas", to, 0, 0, SW_HIDE);
 
 	return false;
 }
