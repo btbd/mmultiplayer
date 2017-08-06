@@ -768,6 +768,7 @@ void HandleMessage(LPMSG lpMsg) {
 								command[chat_input_length] = '\n';
 								command[chat_input_length + 1] = 0;
 								ExecuteCommand(command);
+								free(command);
 							}
 						} else if (host_pid && SendChatMessage && chat_input_length > 0) {
 							HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
