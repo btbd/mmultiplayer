@@ -604,12 +604,14 @@ void HandleMessage(LPMSG lpMsg) {
 				break;
 			case WM_KEYUP: {
 				if (!chat_mode) {
-					if (lpMsg->wParam == VK_OEM_2 && chat_input_length == 0) {
-						chat_input = (char *)realloc(chat_input, 2);
-						chat_input[chat_input_length] = '/';
-						chat_input[++chat_input_length] = 0;
-						chat_input_alloc = 2;
-						++cursor_index;
+					if (lpMsg->wParam == VK_OEM_2) {
+						if (chat_input_length == 0) {
+							chat_input = (char *)realloc(chat_input, 2);
+							chat_input[chat_input_length] = '/';
+							chat_input[++chat_input_length] = 0;
+							chat_input_alloc = 2;
+							++cursor_index;
+						}
 						chat_mode = true;
 						previous_message_index = previous_messages.length;
 					} else if (lpMsg->wParam == settings.keybind) {
@@ -1078,11 +1080,23 @@ void MainThread() {
 	while (!GetModuleHandleA("d3d9.dll")) Sleep(1);
 
 	MODULEENTRY32 module = GetModuleInfoByName(GetCurrentProcessId(), L"MirrorsEdge.exe");
+	DWORD addr = 0;
+	char disassembled[0xFF];
+
+	// 0x40BD90 - 0040C040
+	do {
+		Sleep(100);
+		char *buffer = (char *)malloc(module.modBaseSize);
+		ReadBuffer(GetCurrentProcess(), module.modBaseAddr, buffer, module.modBaseSize);
+		addr = (DWORD)FindPattern(buffer, module.modBaseSize - 14, "\x55\x8B\xEC\x8B\x45\x08\x66\x83\x38\x00\x56\x8B\xF1", "xxxxxxxxxxxxx");
+		free(buffer);
+	} while (!addr);
+	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize - 14, "\x55\x8B\xEC\x8B\x45\x08\x66\x83\x38\x00\x56\x8B\xF1", "xxxxxxxxxxxxx");
+	TrampolineHook(CopyStringHook, (void *)addr, (void **)&CopyStringOriginal);
+	printf("copy string: 0x%x\n", addr);
+
 	base_path = (DWORD)ProcessFindPattern(GetCurrentProcess(), module.modBaseAddr, module.modBaseSize, "\x89\x0D\x00\x00\x00\x00\xB9\x00\x00\x00\x00\xFF", "xx????x????x");
 	base_path = ReadInt(GetCurrentProcess(), (void *)(base_path + 2));
-
-	DWORD addr;
-	char disassembled[0xFF];
 
 	// 0x11C6A70
 	addr = LevelLoadBase = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x6A\xFF\x68\x00\x00\x00\x00\x64\xA1\x00\x00\x00\x00\x50\x81\xEC\x00\x00\x00\x00\x53\x55\x56\x57\xA1\x00\x00\x00\x00\x33\xC4\x50\x8D\x84\x24\x00\x00\x00\x00\x64\xA3\x00\x00\x00\x00\x8B\xE9\x89\x6C\x24\x00\x00\xFF\x89", "???????xxxxxxxxx?xxxxxxxx????xxxxxx?xxxxxxxxxxxxxx??xx");
@@ -1129,7 +1143,8 @@ void MainThread() {
 	printf("string table: 0x%x\n", string_table);
 
 	// 0xB848A0
-	addr = SublevelFinishLoadBase = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x55\x8B\xEC\x83\xE4\xC0\x83\xEC\x34\x8B\x45\x08\x53\x56\x8B\xD9", "?????xxxxxxxxxxx");
+	// addr = SublevelFinishLoadBase = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x55\x8B\xEC\x83\xE4\xC0\x83\xEC\x34\x8B\x45\x08\x53\x56\x8B\xD9", "?????xxxxxxxxxxx");
+	addr = SublevelFinishLoadBase = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x55\x8B\xEC\x83\xE4\xC0\x83\xEC\x00\x8B\x45\x08\x53\x56\x8B\xD9\x57\x8B\x78\x44\x8D", "??????xx?xxxxxxxxxxxx");
 	TrampolineHook(SublevelFinishLoadHook, (void *)addr, (void **)&SublevelFinishLoadOriginal);
 	printf("sublevel finish load: 0x%x\n", addr);
 
@@ -1138,11 +1153,6 @@ void MainThread() {
 	CompareStringsBack = addr + 6;
 	SetJMP((void *)CompareStringsPatch, (void *)addr, 0);
 	printf("compare strings: 0x%x\n", addr);
-
-	// 0x40BD90
-	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x55\x8B\xEC\x8B\x45\x08\x66\x83\x38\x00\x56\x8B\xF1", "xxxxxxxxxxxxx");
-	TrampolineHook(CopyStringHook, (void *)addr, (void **)&CopyStringOriginal);
-	printf("copy string: 0x%x\n", addr);
 
 	TrampolineHook(EndSceneHook, (void *)GetD3D9Exports()[D3D9_EXPORT_ENDSCENE], (void **)&EndSceneOriginal);
 
