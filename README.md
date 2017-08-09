@@ -42,7 +42,7 @@ Putting a `/` as the first character in your message will execute your message a
 - `/rec begin` begins recording with the current character and name.
 - `/rec end` stops recording.
 - `/rec list` lists the current recordings in the chat (the leading number is the recording index).
-- `/rec play <index>` deletes the recording at `<index>`. Use `/rec play all` to play all reocrdings.
+- `/rec play <index>` plays the recording at `<index>`. Use `/rec play all` to play all reocrdings.
 - `/rec pause <index>` pauses the playing recording at `<index>`. Use `/rec pause all` to pause all playing recordings.
 - `/rec unpause <index>` unpauses the playing recording at `<index>`. Use `/rec unpause all` to unpause all recordings.
 - `/rec delete <index>` deletes the recording at `<index>`. Use `/rec delete all` to delete all recordings.
