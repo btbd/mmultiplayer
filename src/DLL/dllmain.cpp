@@ -760,7 +760,7 @@ void HandleMessage(LPMSG lpMsg) {
 								}
 
 								EXPORT_AddChatMessage("End of Recording List\n");
-							}  else {
+							} else {
 								wchar_t *command = (wchar_t *)malloc((chat_input_length + 2) * sizeof(wchar_t));
 								CharToWChar(command, chat_input + 1);
 								command[chat_input_length - 1] = '\r';
@@ -934,7 +934,7 @@ void ExecuteCommand(wchar_t *command) {
 		*(DWORD *)(a3 + 4) = wcslen(command);
 		*(DWORD *)a3 = (DWORD)command;
 
-		ExecuteCommandOriginal((int)this_, (void **)a2, (int)a3, 1);
+		ExecuteCommandOriginal((int)this_, (void **)a2, (int)a3, 0);
 
 		free(this_);
 		free(a2);

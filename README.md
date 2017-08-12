@@ -16,7 +16,7 @@ If others can see you, but you can't see them, try running `MMultiplayer.exe` in
 
 ### Keybinds
 
-`Y` - Open chat.
+Press your chat keybind to open the chat.
 
 `/` - Open chat with preceding forward slash for commands.
 
@@ -64,6 +64,8 @@ Putting a `/` as the first character in your message will execute your message a
 **Chat** - If this is checked, you will see chat notifications without having the chat open.
 
 **Spectator** - If this is checked, you will be completely invisible and have no effect on any of the other players in the room, but you will still be able to see the other players.
+
+**Chat Bind** - Your chat keybind that you press in-game to open chat.
 
 ## How It Works
 

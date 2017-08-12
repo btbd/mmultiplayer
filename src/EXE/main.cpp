@@ -148,7 +148,7 @@ void ProcessListener() {
 		tpid = GetProcessInfoByName(L"MirrorsEdge.exe").th32ProcessID;
 		if (!tpid) {
 			process = 0;
-		} else if (pid != tpid && CopyMaps(tpid)/* && GetProcessThreadCount(tpid) >= 20*/) {
+		} else if (pid != tpid && GetModuleInfoByName(tpid, L"HID.dll").modBaseAddr > 0 && CopyMaps(tpid)) {
 			pid = tpid;
 			if (process) {
 				CloseHandle(process);
