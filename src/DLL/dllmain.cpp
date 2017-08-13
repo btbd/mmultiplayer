@@ -1013,7 +1013,7 @@ DWORD Hash(char *str) {
 	DWORD h = (tolower(*str) ^ 0x4B9ACE2F) * 0x1000193;
 	int length = strlen(str);
 	for (int i = 1; i <= length; ++i) {
-		h = (tolower(*str) ^ h) * 0x1000193;
+		h = (tolower(str[i]) ^ h) * 0x1000193;
 	}
 	return h;
 }
