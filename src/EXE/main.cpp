@@ -7,6 +7,7 @@ SOCKET server_socket, client_socket;
 char clients[0xFF][0xFF];
 int clients_length = 0;
 SETTINGS settings = { 0 };
+DWORD last_ping = 0;
 
 HANDLE process = 0;
 DWORD base_path = 0;
@@ -86,6 +87,25 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)Listener, 0, 0, 0);
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)Sender, 0, 0, 0);
 
+	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)ServerListener, 0, 0, 0);
+
+	last_ping = timeGetTime();
+	for (;;) {
+		if (timeGetTime() - last_ping > 2500 || send(server_socket, "p\n", 2, 0) != 2) {
+			closesocket(server_socket);
+			server_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+			connect(server_socket, (SOCKADDR *)&server, sizeof(server));
+			last_ping = timeGetTime();
+
+			printf("reconnected\n");
+		}
+		Sleep(1000);
+	}
+
+	return 0;
+}
+
+void ServerListener() {
 	int size = 0;
 	char buffer[0xFFF] = { 0 };
 	for (;;) {
@@ -94,9 +114,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			ParseMessage(buffer);
 		}
 	}
-
-	closesocket(server_socket);
-	return 0;
 }
 
 void ParseMessage(char *buffer) {
@@ -136,6 +153,19 @@ void ParseMessage(char *buffer) {
 				WaitForSingleObject(CallFunction("EXPORT_AddChatMessage", msg), INFINITE);
 				VirtualFreeEx(process, msg, 0, MEM_RELEASE);
 			}
+		} else if (*buffer == 'k') {
+			++buffer;
+			printf("kismet message: %s\n", buffer);
+
+			if (process) {
+				DWORD length = strlen(buffer) + 1;
+				LPVOID msg = VirtualAllocEx(process, NULL, length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+				WriteBuffer(process, msg, buffer, length);
+				WaitForSingleObject(CallFunction("EXPORT_ExecuteCommand", msg), INFINITE);
+				VirtualFreeEx(process, msg, 0, MEM_RELEASE);
+			}
+		} else if (*buffer == 'p') {
+			last_ping = timeGetTime();
 		}
 
 		buffer = end + 1;
@@ -192,6 +222,9 @@ void ProcessListener() {
 
 				WriteInt(process, base, (int)SendChatMessage);
 				WaitForSingleObject(CallFunction("EXPORT_SetSendChatMessage", base), INFINITE);
+
+				WriteInt(process, base, (int)SendKismetMessage);
+				WaitForSingleObject(CallFunction("EXPORT_SetSendKismetMessage", base), INFINITE);
 
 				VirtualFreeEx(process, base, 0, MEM_RELEASE);
 			} else {
@@ -382,6 +415,25 @@ void SendChatMessage(char *str) {
 	int length = sprintf(msg, "m%s: %s\n", settings.username, str);
 	send(server_socket, msg, length, 0);
 	free(msg);
+}
+
+void SendKismetMessage(char *str) {
+	if (*str == 1 && str[1] == 0) {
+		DWORD l = ReadInt(process, (void *)level);
+		if (l) {
+			printf("sending level: 0x%x\n", l);
+			char *msg = (char *)malloc(0xFF);
+			int length = sprintf(msg, "l%d\n", l);
+			send(server_socket, msg, length, 0);
+			free(msg);
+		}
+	} else {
+		printf("sending kismet msg: %s\n", str);
+		char *msg = (char *)malloc(strlen(str) + 3);
+		int length = sprintf(msg, "k%s\n", str);
+		send(server_socket, msg, length, 0);
+		free(msg);
+	}
 }
 
 HANDLE CallFunction(char *name, void *arg) {

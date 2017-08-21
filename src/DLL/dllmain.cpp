@@ -6,6 +6,7 @@ static PLAYER players[CHARACTER_COUNT * ACTORS_PER_CHARACTER] = { 0 };
 static DWORD level = 0;
 static DWORD host_pid = 0;
 static DWORD SendChatMessage = 0;
+static DWORD SendKismetMessage = 0;
 
 DWORD base_path = 0, LevelLoadBase = 0, SublevelFinishLoadBase = 0, CompareStringsBack = 0, projection_base = 0, engine_info = 0, level_stream_command = 0, string_table = 0;
 bool loading = false;
@@ -225,6 +226,17 @@ int __fastcall UpdateBonesHook(int this_, void *idle_, int bones) {
 	return UpdateBonesOriginal(this_, bones);
 }
 
+void SendLevel() {
+	HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
+	if (process) {
+		LPVOID param = VirtualAllocEx(process, 0, 2, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+		WriteBuffer(process, param, "\x01\x00", 2);
+		WaitForSingleObject(CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendKismetMessage, param, 0, 0), INFINITE);
+		VirtualFreeEx(process, param, 0, MEM_RELEASE);
+	}
+	CloseHandle(process);
+}
+
 int __fastcall LevelLoadHook(void *this_, void *idle_, int a2, __int64 a3) {
 	loading = true;
 	for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
@@ -241,6 +253,7 @@ int __fastcall LevelLoadHook(void *this_, void *idle_, int a2, __int64 a3) {
 		ExecuteCommand(L"streammap mp_actors\r\n");
 	}
 
+	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)SendLevel, 0, 0, 0);
 	printf("loaded %s - 0x%x\n", level_name, level);
 
 	return ret;
@@ -922,6 +935,32 @@ bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]) {
 	return !(vOut.z < 0 || vOut.w < 0);
 }
 
+void **__fastcall ExecuteCommandHook(int this_, void *idle_, void **a2, int a3, int a4) {
+	if (a3 && ReadInt(GetCurrentProcess, (void *)(a3 + 4))) {
+		wchar_t *command = *(wchar_t **)a3;
+		printf("command: %ws\n", command);
+		if (SendKismetMessage && memcmp(command, L"mpsend ", 14) == 0) {
+			command = (wchar_t *)((DWORD)command + 14);
+			int length = wcslen(command);
+			char *str = (char *)malloc(length + 1);
+			WCharToChar(str, command);
+
+			HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
+			if (process) {
+				LPVOID param = VirtualAllocEx(process, 0, length + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+				WriteBuffer(process, param, str, length + 1);
+				WaitForSingleObject(CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendKismetMessage, param, 0, 0), INFINITE);
+				VirtualFreeEx(process, param, 0, MEM_RELEASE);
+			}
+			CloseHandle(process);
+
+			free(str);
+		}
+	}
+
+	return ExecuteCommandOriginal(this_, a2, a3, a4);
+}
+
 void ExecuteCommand(wchar_t *command) {
 	if (engine_info) {
 		char *this_ = (char *)calloc(0xFFF, 1);
@@ -934,7 +973,7 @@ void ExecuteCommand(wchar_t *command) {
 		*(DWORD *)(a3 + 4) = wcslen(command);
 		*(DWORD *)a3 = (DWORD)command;
 
-		ExecuteCommandOriginal((int)this_, (void **)a2, (int)a3, 0);
+		ExecuteCommandHook((int)this_, 0, (void **)a2, (int)a3, 0);
 
 		free(this_);
 		free(a2);
@@ -1124,7 +1163,8 @@ void MainThread() {
 
 	// 0xFA99D0
 	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x6A\xFF\x68\x00\x00\x00\x00\x64\xA1\x00\x00\x00\x00\x50\x83\xEC\x28\x53\x55\x56\x57\xA1\x00\x00\x00\x00\x33\xC4\x50\x8D\x44\x24\x3C\x64\xA3\x00\x00\x00\x00\x89\x4C\x24\x18\x33\xDB\x89\x5C\x24\x14\x39\x99\xCC\x02\x00\x00", "xxx????xxxxxxxxxxxxxxx????xxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-	*(DWORD *)&ExecuteCommandOriginal = addr;
+	// *(DWORD *)&ExecuteCommandOriginal = addr;
+	TrampolineHook(ExecuteCommandHook, (void *)addr, (void **)&ExecuteCommandOriginal);
 	printf("execute command: 0x%x\n", addr);
 
 	// 0xff5d7d
@@ -1211,6 +1251,25 @@ EXPORT void EXPORT_SetHostPID(DWORD *in) {
 EXPORT void EXPORT_SetSendChatMessage(DWORD *in) {
 	if (in) {
 		SendChatMessage = *in;
+	}
+}
+
+EXPORT void EXPORT_SetSendKismetMessage(DWORD *in) {
+	if (in) {
+		SendKismetMessage = *in;
+	}
+}
+
+EXPORT void EXPORT_ExecuteCommand(char *command) {
+	if (command && ExecuteCommandOriginal) {
+		int length = strlen(command);
+		wchar_t *b = (wchar_t *)malloc((length + 3) * 2);
+		CharToWChar(b, command);
+		b[length] = L'\r';
+		b[length + 1] = L'\n';
+		b[length + 2] = 0;
+		ExecuteCommand(b);
+		free(b);
 	}
 }
 

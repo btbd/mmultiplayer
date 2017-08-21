@@ -13,6 +13,7 @@ var server = net.createServer(function(c) {
 			if (d[i].charAt(0) == 'r') {
 				client.room = parseInt(d[i].slice(1));
 				updateClients();
+				updateHosts();
 			} else if (d[i].charAt(0) == 'm') {
 				for (var e = 0; e < clients.length; ++e) {
 					if (clients[e].room === client.room) {
@@ -20,8 +21,20 @@ var server = net.createServer(function(c) {
 					}
 				}
 			} else if (d[i].charAt(0) == 'c') {
-				client.character =  parseInt(d[i].slice(1));
+				client.character = parseInt(d[i].slice(1));
 				updateClients();
+			} else if (d[i].charAt(0) == 'k') {
+				for (var e = 0; e < clients.length; ++e) {
+					if (clients[e].room === client.room && clients[e].level === client.level && clients[e].ip !== client.ip) {
+						clients[e].client.write("k" + d[i].slice(1) + "\n");
+					}
+				}
+			} else if (d[i].charAt(0) == 'l') {
+				client.level_time = Date.now();
+				client.level = parseInt(d[i].slice(1));
+				updateHosts();
+			} else if (d[i].charAt(0) == 'p') {
+				client.client.write("p\n");
 			}
 		}
 	});
@@ -34,6 +47,7 @@ var server = net.createServer(function(c) {
 		}
 		
 		updateClients();
+		updateHosts();
 	});
 	
 	c.on("error", function() {});
@@ -44,6 +58,9 @@ function Client(c) {
 	this.ip = c.remoteAddress;
 	this.room = 0;
 	this.character = 0;
+	
+	this.level = 0;
+	this.level_time = 0;
 }
 
 function getClients(e) {
@@ -65,6 +82,22 @@ function updateClients() {
 		}
 		index += (clients[i].character * ACTORS_PER_CHARACTER);
 		clients[i].client.write("i" + index + "\n");
+	}
+}
+
+function updateHosts() {
+	for (var i = 0; i < clients.length; ++i) {
+		var first = i;
+		for (var e = 0; e < clients.length; ++e) {
+			if (clients[e].room === clients[i].room && clients[e].level === clients[i].level && clients[e].level_time < clients[first].level_time) {
+				first = e;
+				break;
+			}
+		}
+			
+		if (first === i) {
+			clients[i].client.write("kce mphost\n");
+		}
 	}
 }
 

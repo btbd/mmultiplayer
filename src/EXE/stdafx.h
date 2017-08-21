@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include "resource.h"
 #pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "winmm.lib")
 #include "memory.h"
 
 #define BONES_SIZE 0xD80
@@ -70,6 +71,7 @@ enum {
 
 #define ACTORS_PER_CHARACTER 8
 
+void ServerListener();
 void Listener();
 void Sender();
 void ProcessListener();
@@ -79,6 +81,7 @@ HANDLE CallFunction(char *name, void *arg);
 DWORD GetPlayerBase();
 bool IsGameWindow(HWND hWnd);
 void SendChatMessage(char *str);
+void SendKismetMessage(char *str);
 void WindowThread();
 void SaveSettings(SETTINGS *settings, bool startup);
 bool CopyMaps(DWORD pid);

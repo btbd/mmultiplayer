@@ -67,9 +67,17 @@ Putting a `/` as the first character in your message will execute your message a
 
 **Chat Bind** - Your chat keybind that you press in-game to open chat.
 
-## How It Works
+## Communicative Maps
 
-Read the source for now.
+You are able to create maps that communicate with the multiplayer mod (for co-op or gamemodes) by using Kismet and console events.
+
+To send a message to other clients in the same room and level as you, execute this console command through Kismet:
+
+```mpsend <command>```
+
+For example, `mpsend killbots` kills bots for the other clients, and `mpsend ce test` causes the console event `test` for the other clients.
+
+When the current user becomes host and a person joins/leaves the level, the console event `mphost` is caused to that client. All host migration is handled, so `mphost` should be treated as a message to broadcast data to the other clients. Only one user will be host on the current level and room.
 
 ## Contributing
 
