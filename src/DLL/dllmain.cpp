@@ -25,6 +25,8 @@ int previous_message_index = 0, cursor_index = 0;
 DWORD cursor_frame = 0;
 SETTINGS settings;
 
+ARRAY commands = ArrayNew(sizeof(wchar_t *));
+
 int(__thiscall *UpdateActorOriginal)(int this_, int);
 int(__thiscall *UpdateBonesOriginal)(int this_, int bones);
 int(__thiscall *LevelLoadOriginal)(void *this_, int, __int64);
@@ -44,6 +46,14 @@ BOOL(WINAPI *GetMessageAOriginal)(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UI
 HMODULE(WINAPI *LoadLibraryAOriginal)(char *);
 
 int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
+	for (int i = (int)commands.length - 1; i > -1; --i) {
+		wchar_t *c = *(wchar_t **)ArrayGet(&commands, i);
+		ExecuteCommand(c);
+		free(c);
+	}
+
+	commands.length = 0;
+
 	if (!loading) {
 		float *x = (float *)(this_ + 0xE8);
 		float *y = (float *)(this_ + 0xEC);
@@ -150,6 +160,9 @@ int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
 }
 
 int __fastcall UpdateBonesHook(int this_, void *idle_, int bones) {
+	static DWORD lower_body = 0;
+	static DWORD upper_body = 0;
+
 	if (!loading && this_ != bones && *(DWORD *)(bones + 4) > 0) {
 		CopyBones(this_, *(DWORD *)(bones + 4));
 		memcpy(*(void **)this_, *(const void **)bones, 32 * *(DWORD *)(bones + 4));
@@ -251,9 +264,10 @@ int __fastcall LevelLoadHook(void *this_, void *idle_, int a2, __int64 a3) {
 
 	if (_stricmp(level_name, "TdMainMenu") != 0) {
 		ExecuteCommand(L"streammap mp_actors\r\n");
+	} else {
+		CreateThread(0, 0, (LPTHREAD_START_ROUTINE)SendLevel, 0, 0, 0);
 	}
 
-	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)SendLevel, 0, 0, 0);
 	printf("loaded %s - 0x%x\n", level_name, level);
 
 	return ret;
@@ -266,6 +280,7 @@ int __fastcall SublevelFinishLoadHook(DWORD *this_, void *idle_, int a2, int a3)
 		wchar_t *name = (wchar_t *)GetPointer(GetCurrentProcess(), 3, string_table, ReadInt(GetCurrentProcess(), (void *)(a2 + 0x3C)) * 4, 0x10);
 		if (name && _wcsnicmp(name, L"mp_actors", 9) == 0) {
 			loading = false;
+			CreateThread(0, 0, (LPTHREAD_START_ROUTINE)SendLevel, 0, 0, 0);
 		}
 	}
 
@@ -937,20 +952,21 @@ bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]) {
 
 void **__fastcall ExecuteCommandHook(int this_, void *idle_, void **a2, int a3, int a4) {
 	if (a3 && ReadInt(GetCurrentProcess, (void *)(a3 + 4))) {
+		int length = ReadInt(GetCurrentProcess, (void *)(a3 + 4));
 		wchar_t *command = *(wchar_t **)a3;
 		printf("command: %ws\n", command);
-		if (SendKismetMessage && memcmp(command, L"mpsend ", 14) == 0) {
+		if (length > 7 && SendKismetMessage && memcmp(command, L"mpsend ", 14) == 0) {
 			command = (wchar_t *)((DWORD)command + 14);
-			int length = wcslen(command);
 			char *str = (char *)malloc(length + 1);
 			WCharToChar(str, command);
+
+			printf("kismet command: %s\n", str);
 
 			HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
 			if (process) {
 				LPVOID param = VirtualAllocEx(process, 0, length + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 				WriteBuffer(process, param, str, length + 1);
-				WaitForSingleObject(CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendKismetMessage, param, 0, 0), INFINITE);
-				VirtualFreeEx(process, param, 0, MEM_RELEASE);
+				CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendKismetMessage, param, 0, 0);
 			}
 			CloseHandle(process);
 
@@ -962,7 +978,7 @@ void **__fastcall ExecuteCommandHook(int this_, void *idle_, void **a2, int a3, 
 }
 
 void ExecuteCommand(wchar_t *command) {
-	if (engine_info) {
+	if (engine_info && ExecuteCommandOriginal) {
 		char *this_ = (char *)calloc(0xFFF, 1);
 		*(DWORD *)(this_ + 716) = engine_info;
 
@@ -973,7 +989,7 @@ void ExecuteCommand(wchar_t *command) {
 		*(DWORD *)(a3 + 4) = wcslen(command);
 		*(DWORD *)a3 = (DWORD)command;
 
-		ExecuteCommandHook((int)this_, 0, (void **)a2, (int)a3, 0);
+		ExecuteCommandHook((int)this_, 0, (void **)a2, (int)a3, 1);
 
 		free(this_);
 		free(a2);
@@ -1268,8 +1284,8 @@ EXPORT void EXPORT_ExecuteCommand(char *command) {
 		b[length] = L'\r';
 		b[length + 1] = L'\n';
 		b[length + 2] = 0;
-		ExecuteCommand(b);
-		free(b);
+		printf("adding command: %ws\n", b);
+		ArrayPush(&commands, &b);
 	}
 }
 

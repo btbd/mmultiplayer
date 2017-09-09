@@ -99,6 +99,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 			printf("reconnected\n");
 		}
+
 		Sleep(1000);
 	}
 
@@ -418,21 +419,25 @@ void SendChatMessage(char *str) {
 }
 
 void SendKismetMessage(char *str) {
-	if (*str == 1 && str[1] == 0) {
-		DWORD l = ReadInt(process, (void *)level);
-		if (l) {
-			printf("sending level: 0x%x\n", l);
-			char *msg = (char *)malloc(0xFF);
-			int length = sprintf(msg, "l%d\n", l);
+	if (str) {
+		if (*str == 1 && str[1] == 0) {
+			DWORD l = ReadInt(process, (void *)level);
+			if (l) {
+				printf("sending level: 0x%x\n", l);
+				char *msg = (char *)malloc(0xFF);
+				int length = sprintf(msg, "l%d\n", l);
+				send(server_socket, msg, length, 0);
+				free(msg);
+			}
+		} else {
+			printf("sending kismet msg: %s\n", str);
+			char *msg = (char *)malloc(strlen(str) + 3);
+			int length = sprintf(msg, "k%s\n", str);
 			send(server_socket, msg, length, 0);
 			free(msg);
 		}
-	} else {
-		printf("sending kismet msg: %s\n", str);
-		char *msg = (char *)malloc(strlen(str) + 3);
-		int length = sprintf(msg, "k%s\n", str);
-		send(server_socket, msg, length, 0);
-		free(msg);
+
+		VirtualFree(str, 0, MEM_RELEASE);
 	}
 }
 

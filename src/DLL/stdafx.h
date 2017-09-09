@@ -75,6 +75,13 @@ typedef struct {
 	short rotation;
 } FRAME;
 
+typedef struct {
+	char lower_body[0x940];
+	char upper_body[0x940];
+	float position[3];
+	long long rotation;
+} DEMO_FRAME;
+
 enum {
 	RECORDING_STOPPED = 0,
 	RECORDING_RECORDING,
