@@ -75,7 +75,7 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Faith");
 			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Kate");
 			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Celeste");
-			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Assault Celeste");
+			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Assassin");
 			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Jacknife");
 			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Miller");
 			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Kreeg");
