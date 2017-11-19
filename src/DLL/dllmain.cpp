@@ -990,8 +990,11 @@ void **__fastcall ExecuteCommandHook(int this_, void *idle_, void **a2, int a3, 
 				free(str);
 			} else if (length > 5 && memcmp(command, L"echo ", 10) == 0) {
 				command = (wchar_t *)((DWORD)command + 10);
-				char *str = (char *)malloc(length + 1);
+				char *str = (char *)calloc(length + 2, 1);
 				WCharToChar(str, command);
+				char *end = strchr(str, '\n');
+				if (end) *end = 0;
+				strcat(str, "\r");
 
 				printf("echo command: %s\n", str);
 
