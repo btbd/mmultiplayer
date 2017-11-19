@@ -411,11 +411,29 @@ void Send(char *ip, char *buffer, int size) {
 }
 
 void SendChatMessage(char *str) {
-	printf("sending chat msg: %s\n", str);
-	char *msg = (char *)malloc(strlen(settings.username) + strlen(str) + 5);
-	int length = sprintf(msg, "m%s: %s\n", settings.username, str);
-	send(server_socket, msg, length, 0);
-	free(msg);
+	if (str) {
+		if (*str == 1) {
+			str = (char *)((DWORD)str + 1);
+			printf("sending broadcast msg: %s\n", str);
+
+			std::string repl(str);
+			repl = std::regex_replace(repl, std::regex("\\{me\\}"), settings.username);
+			str = _strdup(repl.c_str());
+
+			char *msg = (char *)malloc(strlen(str) + 3);
+			int length = sprintf(msg, "m%s\n", str);
+			send(server_socket, msg, length, 0);
+			free(msg);
+
+			free(str);
+		} else {
+			printf("sending chat msg: %s\n", str);
+			char *msg = (char *)malloc(strlen(settings.username) + strlen(str) + 5);
+			int length = sprintf(msg, "m%s: %s\n", settings.username, str);
+			send(server_socket, msg, length, 0);
+			free(msg);
+		}
+	}
 }
 
 void SendKismetMessage(char *str) {

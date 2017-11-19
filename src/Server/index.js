@@ -11,7 +11,9 @@ var server = net.createServer(function(c) {
 		
 		for (var i = 0; i < d.length - 1; ++i) {
 			if (d[i].charAt(0) == 'r') {
+				broadcastRL("kce mpleave\n");
 				client.room = parseInt(d[i].slice(1));
+				broadcastRL("kce mpjoin\n");
 				updateClients();
 				updateHosts();
 			} else if (d[i].charAt(0) == 'm') {
@@ -30,8 +32,10 @@ var server = net.createServer(function(c) {
 					}
 				}
 			} else if (d[i].charAt(0) == 'l') {
+				broadcastRL("kce mpleave\n");
 				client.level_time = Date.now();
 				client.level = parseInt(d[i].slice(1));
+				broadcastRL("kce mpjoin\n");
 				updateHosts();
 			} else if (d[i].charAt(0) == 'p') {
 				client.client.write("p\n");
@@ -43,6 +47,8 @@ var server = net.createServer(function(c) {
 		for (var i = 0; i < clients.length; ++i) {
 			if (clients[i].ip === client.ip) {
 				clients.splice(i, 1);
+			} else if (clients[i].room === client.room && clients[i].level === client.level) {
+				clients[i].client.write("kce mpleave\n");
 			}
 		}
 		
@@ -61,6 +67,14 @@ function Client(c) {
 	
 	this.level = 0;
 	this.level_time = 0;
+}
+
+function broadcastRL(client, msg) {
+	for (var i = 0; i < clients.length; ++i) {
+		if (clients[i].room === client.room && clients[i].level === client.level && clients[i].ip !== client.ip) {
+			clients[i].client.write(msg);
+		}
+	}
 }
 
 function getClients(e) {

@@ -950,27 +950,62 @@ bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]) {
 	return !(vOut.z < 0 || vOut.w < 0);
 }
 
+void BroadcastThread(char *str) {
+	printf("broadcast command: %s\n", (char *)((DWORD)str + 1));
+
+	DWORD length = strlen(str) + 2;
+	HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
+	if (process) {
+		LPVOID param = VirtualAllocEx(process, 0, length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+		WriteBuffer(process, param, str, length);
+		WaitForSingleObject(CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendChatMessage, param, 0, 0), INFINITE);
+		VirtualFreeEx(process, param, 0, MEM_RELEASE);
+	}
+	CloseHandle(process);
+
+	free(str);
+}
+
 void **__fastcall ExecuteCommandHook(int this_, void *idle_, void **a2, int a3, int a4) {
 	if (a3 && ReadInt(GetCurrentProcess, (void *)(a3 + 4))) {
 		int length = ReadInt(GetCurrentProcess, (void *)(a3 + 4));
 		wchar_t *command = *(wchar_t **)a3;
 		printf("command: %ws\n", command);
-		if (length > 7 && SendKismetMessage && memcmp(command, L"mpsend ", 14) == 0) {
-			command = (wchar_t *)((DWORD)command + 14);
-			char *str = (char *)malloc(length + 1);
-			WCharToChar(str, command);
+		if (SendKismetMessage) {
+			if (length > 7 && memcmp(command, L"mpsend ", 14) == 0) {
+				command = (wchar_t *)((DWORD)command + 14);
+				char *str = (char *)malloc(length + 1);
+				WCharToChar(str, command);
 
-			printf("kismet command: %s\n", str);
+				printf("kismet command: %s\n", str);
 
-			HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
-			if (process) {
-				LPVOID param = VirtualAllocEx(process, 0, length + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-				WriteBuffer(process, param, str, length + 1);
-				CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendKismetMessage, param, 0, 0);
+				HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
+				if (process) {
+					LPVOID param = VirtualAllocEx(process, 0, length + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+					WriteBuffer(process, param, str, length + 1);
+					CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendKismetMessage, param, 0, 0);
+				}
+				CloseHandle(process);
+
+				free(str);
+			} else if (length > 5 && memcmp(command, L"echo ", 10) == 0) {
+				command = (wchar_t *)((DWORD)command + 10);
+				char *str = (char *)malloc(length + 1);
+				WCharToChar(str, command);
+
+				printf("echo command: %s\n", str);
+
+				EXPORT_AddChatMessage(str);
+
+				free(str);
+			} else if (length > 10 && memcmp(command, L"broadcast ", 20) == 0) {
+				command = (wchar_t *)((DWORD)command + 20);
+				char *str = (char *)malloc(length + 2);
+				*str = 1;
+				WCharToChar((char *)((DWORD)str + 1), command);
+
+				CreateThread(0, 0, (LPTHREAD_START_ROUTINE)BroadcastThread, str, 0, 0);
 			}
-			CloseHandle(process);
-
-			free(str);
 		}
 	}
 
