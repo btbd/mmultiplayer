@@ -79,6 +79,18 @@ For example, `mpsend killbots` kills bots for the other clients, and `mpsend ce 
 
 When the current user becomes host and a person joins/leaves the level, the console event `mphost` is caused to that client. All host migration is handled, so `mphost` should be treated as a message to broadcast data to the other clients. Only one user will be host on the current level and room.
 
+### Events
+`mphost` - Called when the current user receives host
+
+`mpjoin` - Called when a user joins the current room and level
+
+`mpleave` - Called when a user leaves the current room and level
+
+### Commands
+`echo <msg>` - Echoes `<msg>` in the chat locally
+
+`broadcast <msg>` - Broadcasts `<msg>` to everyone in the current room
+
 ## Contributing
 
 ### Client

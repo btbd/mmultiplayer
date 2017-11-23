@@ -46,7 +46,7 @@ BOOL(WINAPI *GetMessageAOriginal)(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UI
 HMODULE(WINAPI *LoadLibraryAOriginal)(char *);
 
 int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
-	for (int i = (int)commands.length - 1; i > -1; --i) {
+	for (int i = 0, l = (int)commands.length; i < l; ++i) {
 		wchar_t *c = *(wchar_t **)ArrayGet(&commands, i);
 		ExecuteCommand(c);
 		free(c);
