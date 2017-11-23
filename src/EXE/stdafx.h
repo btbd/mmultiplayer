@@ -57,7 +57,7 @@ typedef struct {
 #define SERVER_PORT 2783
 #define CLIENT_PORT 7319
 // #define IP "127.0.0.1"
-#define IP "169.46.24.47"
+#define IP "169.46.30.44"
 
 enum {
 	CHARACTER_FAITH = 0,
