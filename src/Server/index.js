@@ -105,7 +105,6 @@ function updateHosts() {
 		for (var e = 0; e < clients.length; ++e) {
 			if (clients[e].room === clients[i].room && clients[e].level === clients[i].level && clients[e].level_time < clients[first].level_time) {
 				first = e;
-				break;
 			}
 		}
 			
