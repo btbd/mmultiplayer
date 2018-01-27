@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#define DEBUG
+// #define DEBUG
 
 static PLAYER players[CHARACTER_COUNT * ACTORS_PER_CHARACTER] = { 0 };
 static DWORD level = 0;
@@ -834,7 +834,6 @@ void HandleMessage(LPMSG lpMsg) {
 									}
 								}
 
-								printf("%d: %s\n", length, input);
 								if (memcmp(input, "tp ", 3) == 0) {
 									char *name = input + 3;
 
