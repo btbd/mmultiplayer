@@ -2,9 +2,14 @@ var ACTORS_PER_CHARACTER = 8;
 var clients = [];
 
 var net = require("net");
+var dgram = require('dgram');
+var udp_server = dgram.createSocket('udp4');
+
 var server = net.createServer(function(c) {
 	var client = new Client(c);
 	clients.push(client);
+	
+	console.log(client.ip);
 
 	c.on("data", function(d) {
 		d = d.toString().split("\n");
@@ -39,6 +44,8 @@ var server = net.createServer(function(c) {
 				updateHosts();
 			} else if (d[i].charAt(0) == 'p') {
 				client.client.write("p\n");
+			} else if (d[i].charAt(0) == 'v') {
+				client.client.write("1.0.4\n");
 			}
 		}
 	});
@@ -62,6 +69,13 @@ var server = net.createServer(function(c) {
 function Client(c) {
 	this.client = c;
 	this.ip = c.remoteAddress;
+	if (this.ip.indexOf("::ffff:") !== -1) {
+		this.ip = this.ip.slice(7);
+	}
+	
+	this.buffer = null;
+	this.last_update = 0;
+	
 	this.room = 0;
 	this.character = 0;
 	
@@ -89,7 +103,7 @@ function getClients(e) {
 
 function updateClients() {
 	for (var i = 0; i < clients.length; ++i) {
-		clients[i].client.write("c" + getClients(clients[i]) + "\n");
+		// clients[i].client.write("c" + getClients(clients[i]) + "\n");
 		var index = 0;
 		for (var e = 0; e < i; ++e) {
 			if (clients[e].room === clients[i].room && clients[e].character === clients[i].character) ++index;
@@ -114,4 +128,32 @@ function updateHosts() {
 	}
 }
 
+udp_server.on("message", function(msg, info) {
+	if (msg == "pinging") {
+		udp_server.send("received", 3659, info.address);
+	} else {
+		for (var i = 0; i < clients.length; ++i) {
+			if (clients[i].ip === info.address) {
+				clients[i].buffer = msg;
+				clients[i].last_update = Date.now();
+				break;
+			}
+		}
+	}
+});
+
 server.listen(2783);
+udp_server.bind(3659);
+
+(function tick() {
+	for (var i = 0; i < clients.length; ++i) {
+		if (clients[i].buffer && clients[i].last_update + 2000 > Date.now()) {
+			for (var e = 0; e < clients.length; ++e) {
+				if (i === e || clients[e].ip === clients[i].ip || clients[e].room !== clients[i].room) continue;
+				udp_server.send(clients[i].buffer, 3659, clients[e].ip);
+			}
+		}
+	}
+	
+	setTimeout(tick, 17);
+})();

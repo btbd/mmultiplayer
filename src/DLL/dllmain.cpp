@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-// #define DEBUG
+#define DEBUG
 
 static PLAYER players[CHARACTER_COUNT * ACTORS_PER_CHARACTER] = { 0 };
 static DWORD level = 0;
@@ -13,6 +13,10 @@ bool loading = false;
 char level_name[0xFF] = { 0 };
 wchar_t wlevel_name[0xFF] = { 0 };
 RECORDING recordings[CHARACTER_COUNT * ACTORS_PER_CHARACTER] = { 0 };
+
+ARRAY dolly_markers = ArrayNew(sizeof(MARKER));
+int dolly_frame = -1;
+bool dolly_show = true;
 
 bool chat_mode = false;
 char *chat_input = (char *)calloc(1, 1);
@@ -287,12 +291,162 @@ int __fastcall SublevelFinishLoadHook(DWORD *this_, void *idle_, int a2, int a3)
 	return ret;
 }
 
+float Interpolate(float x0, float x1, float y0, float y1, float m0, float m1, float x) {
+	float t = (x - x0) / (x1 - x0);
+	float t2 = t * t;
+	float t3 = t2 * t;
+
+	float h00 = (2 * t3) - (3 * t2) + 1;
+	float h10 = t3 - (2 * t2) + t;
+	float h01 = (-2 * t3) + (3 * t2);
+	float h11 = t3 - t2;
+
+	float domain = x1 - x0;
+
+	return (h00 * y0) + (h10 * domain * m0) + (h01 * y1) + (h11 * domain * m1);
+}
+
+float Slope(MARKER *markers, DWORD markers_length, DWORD pos, DWORD i) {
+	if (i == 0) {
+		return (markers[i + 1].position[pos] - markers[i].position[pos]) / (float)(markers[i + 1].frame - markers[i].frame);
+	} else if (i == markers_length - 1) {
+		return (markers[i].position[pos] - markers[i - 1].position[pos]) / (float)(markers[i].frame - markers[i - 1].frame);
+	}
+
+	return 0.5f * (((markers[i + 1].position[pos] - markers[i].position[pos]) / ((float)(markers[i + 1].frame - markers[i].frame))) + ((markers[i].position[pos] - markers[i - 1].position[pos]) / ((float)(markers[i].frame - markers[i - 1].frame))));
+}
+
+MARKER Marker(int frame) {
+	MARKER marker = { 0 };
+
+	marker.frame = frame;
+	ReadBuffer(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xE8), (char *)marker.position, 12);
+
+	marker.position[3] = (float)fmod(((float)(ReadInt(GetCurrentProcess(), (void *)(GetCameraBase() + 0xF4)) % 0x10000) / 0x10000) * 360.0, 360);
+	if (marker.position[3] < 0) marker.position[3] += 360;
+	if (marker.position[3] > 180) marker.position[3] -= 360;
+	marker.position[4] = (float)(ReadInt(GetCurrentProcess(), (void *)(GetCameraBase() + 0xF8)) % 0x10000);
+
+	return marker;
+}
+
+void AddMarker(MARKER *marker) {
+	ARRAY markers = ArrayNew(sizeof(MARKER));
+
+	DWORD i = 0;
+	for (; i < dolly_markers.length; ++i) {
+		MARKER *m = (MARKER *)ArrayGet(&dolly_markers, i);
+		if (m->frame < marker->frame) {
+			ArrayPush(&markers, m);
+		} else {
+			break;
+		}
+	}
+
+	ArrayPush(&markers, marker);
+
+	for (; i < dolly_markers.length; ++i) {
+		MARKER *m = (MARKER *)ArrayGet(&dolly_markers, i);
+		if (m->frame > marker->frame) {
+			ArrayPush(&markers, m);
+		}
+	}
+
+	ArrayFree(&dolly_markers);
+	dolly_markers = markers;
+}
+
 HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 	HRESULT ret = EndSceneOriginal(pDevice);
 
 	pDevice->SetRenderState(D3DRS_ALPHABLENDENABLE, true);
 	pDevice->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
 	pDevice->SetFVF(D3DFVF_XYZRHW | D3DFVF_DIFFUSE | D3DFVF_TEX1);
+
+	if (dolly_markers.length > 0) {
+		if (dolly_frame >= 0) {
+			DWORD i = 0;
+			MARKER *m0 = 0;
+			MARKER *m1 = 0;
+
+			for (; i < dolly_markers.length - 1; ++i) {
+				m0 = (MARKER *)ArrayGet(&dolly_markers, i);
+				m1 = (MARKER *)ArrayGet(&dolly_markers, i + 1);
+
+				if (dolly_frame >= m0->frame && dolly_frame < m1->frame) {
+					break;
+				}
+			}
+
+			if (i == dolly_markers.length - 1 || !m0 || !m1) {
+				dolly_frame = -1;
+				WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x68), 2);
+				WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x4FE), 1);
+				WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x4F4), 0);
+				WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x503), 0);
+				WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x505), 0);
+				WriteFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x158), 1);
+				WriteFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x15C), 1);
+			} else {
+				float position[5] = { 0 };
+
+				for (DWORD pos = 0; pos < 5; ++pos) {
+					float s0 = Slope((MARKER *)dolly_markers.buffer, dolly_markers.length, pos, i);
+					float s1 = Slope((MARKER *)dolly_markers.buffer, dolly_markers.length, pos, i + 1);
+
+					position[pos] = Interpolate((float)m0->frame, (float)m1->frame, m0->position[pos], m1->position[pos], s0, s1, (float)dolly_frame);
+				}
+
+				WriteBuffer(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xE8), (char *)position, 12);
+				WriteBuffer(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x100), "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 12);
+				WriteInt(GetCurrentProcess(), (void *)(GetCameraBase() + 0xF4), (int)((position[3] / 360) * 0x10000) % 0x10000);
+				WriteInt(GetCurrentProcess(), (void *)(GetCameraBase() + 0xF8), (int)position[4]);
+				WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x68), 0);
+				WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x4FE), 32);
+				WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x503), 0);
+				WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x505), 0);
+				WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x4F4), 0);
+				WriteFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x158), 0.00001f);
+				WriteFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x15C), 0.00001f);
+
+				++dolly_frame;
+			}
+		} else if (dolly_show) {
+			for (DWORD i = 0; i < dolly_markers.length - 1; ++i) {
+				MARKER *m0 = (MARKER *)ArrayGet(&dolly_markers, i);
+				MARKER *m1 = (MARKER *)ArrayGet(&dolly_markers, i + 1);
+				float s0[3] = { 0 };
+				float s1[3] = { 0 };
+
+				for (DWORD pos = 0; pos < 3; ++pos) {
+					s0[pos] = Slope((MARKER *)dolly_markers.buffer, dolly_markers.length, pos, i);
+					s1[pos] = Slope((MARKER *)dolly_markers.buffer, dolly_markers.length, pos, i + 1);
+				}
+
+				for (float t = (float)m0->frame; t < (float)m1->frame; t += 15) {
+					float position[3] = { 0 };
+
+					for (DWORD pos = 0; pos < 3; ++pos) {
+						position[pos] = Interpolate((float)m0->frame, (float)m1->frame, m0->position[pos], m1->position[pos], s0[pos], s1[pos], t);
+					}
+
+					float out[3] = { 0 };
+					if (WorldToScreen(pDevice, position, out)) {
+						float w = 6000.0f / out[2];
+						DrawRect(pDevice, out[0] - (w / 2), out[1] - (w / 2), w, w, D3DCOLOR_RGBA(255, 0, 0, 255), false);
+					}
+				}
+			}
+
+			for (DWORD i = 0; i < dolly_markers.length; ++i) {
+				float out[3] = { 0 };
+				if (WorldToScreen(pDevice, ((MARKER *)ArrayGet(&dolly_markers, i))->position, out)) {
+					float w = 15000.0f / out[2];
+					DrawRect(pDevice, out[0] - (w / 2), out[1] - (w / 2), w, w, D3DCOLOR_RGBA(47, 79, 79, 255), false);
+				}
+			}
+		}
+	}
 
 	if (settings.nametags) {
 		float position[3];
@@ -334,13 +488,13 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 		float height = (float)r.bottom - r.top;
 
 		DrawRect(pDevice, 0, 0, width, height, D3DCOLOR_ARGB(100, 0, 0, 0), false);
-		DrawRect(pDevice, 50, height - 100, width - 125, 70, D3DCOLOR_ARGB(100, 0, 0, 0), false);
+		DrawRect(pDevice, 50, height - 100, width - 105, 70, D3DCOLOR_ARGB(100, 0, 0, 0), false);
 
 		LPD3DXFONT lpFont;
 		D3DXCreateFontA(pDevice, 25, 0, FW_NORMAL, 1, 0, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE, "Arial", &lpFont);
 
 		clip.left = 75;
-		clip.right = (int)width - 100;
+		clip.right = (int)width - 80;
 		clip.top = (int)height - 75;
 		clip.bottom = (int)height;
 
@@ -348,8 +502,8 @@ HRESULT __stdcall EndSceneHook(LPDIRECT3DDEVICE9 pDevice) {
 		r.top = r.bottom = (int)height - 75;
 
 		int size = GetInputWidth(lpFont, chat_input, cursor_index);
-		if (size > width - 175) {
-			r.left -= size - ((int)width - 175);
+		if (size > width - 155) {
+			r.left -= size - ((int)width - 155);
 			r.right = r.left;
 		}
 
@@ -478,6 +632,7 @@ void HandleMessage(LPMSG lpMsg) {
 								if (previous_message_index + 1 < (int)previous_messages.length) {
 									++previous_message_index;
 								} else {
+									previous_message_index = previous_messages.length;
 									chat_input_length = 0;
 									chat_input = (char *)realloc(chat_input, 1);
 									*chat_input = 0;
@@ -656,147 +811,247 @@ void HandleMessage(LPMSG lpMsg) {
 							ArrayPush(&previous_messages, &dup);
 						}
 
-						if (*chat_input == '/') {
-							if (chat_input_length > 3 && memcmp(chat_input, "/tp ", 4) == 0) {
-								char *name = chat_input + 4;
+						previous_message_index = previous_messages.length;
+						chat_mode = false;
 
-								bool found = false;
-								for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
-									if (players[i].base && players[i].level == level && players[i].ping < PING_TIMEOUT && strcmp(players[i].name, name) == 0) {
-										WriteBuffer(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xEC), (char *)(players[i].base + 0xEC), sizeof(float) * 2);
-										WriteFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xE8), ReadFloat(GetCurrentProcess(), (void *)(players[i].base + 0xE8)) + PLAYER_RADIUS);
-										found = true;
-										break;
+						if (*chat_input == '/') {
+							char *input = chat_input + 1;
+
+							do {
+								while (*input && isblank(*input)) {
+									++input;
+								}
+
+								char *next = strchr(input, '&');
+								int length = next ? next - input : strlen(input);
+								if (next) *next = 0;
+
+								for (int i = 0; i < length; ++i) {
+									if (i > 0 && isblank(input[i - 1]) && isblank(input[i])) {
+										memmove(&input[i], &input[i + 1], length - i);
+										--i;
+										--length;
 									}
 								}
 
-								if (!found) {
+								printf("%d: %s\n", length, input);
+								if (memcmp(input, "tp ", 3) == 0) {
+									char *name = input + 3;
+
+									bool found = false;
 									for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
-										if (players[i].base && players[i].level == level && players[i].ping < PING_TIMEOUT && StrStrIA(players[i].name, name)) {
+										if (players[i].base && players[i].level == level && players[i].ping < PING_TIMEOUT && strcmp(players[i].name, name) == 0) {
 											WriteBuffer(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xEC), (char *)(players[i].base + 0xEC), sizeof(float) * 2);
 											WriteFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xE8), ReadFloat(GetCurrentProcess(), (void *)(players[i].base + 0xE8)) + PLAYER_RADIUS);
+											found = true;
 											break;
 										}
 									}
-								}
-							} else if (chat_input_length > 9 && memcmp(chat_input, "/rec begin", 10) == 0) {
-								for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
-									if (recordings[i].state == RECORDING_RECORDING) {
-										recordings[i].state = RECORDING_STOPPED;
-										recordings[i].frame = 0;
-									}
-								}
 
-								int index = settings.character * ACTORS_PER_CHARACTER;
-								int length = index + ACTORS_PER_CHARACTER;
-								for (; index < settings.character + length; ++index) {
-									if (recordings[index].frames.length == 0) {
-										break;
+									if (!found) {
+										for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
+											if (players[i].base && players[i].level == level && players[i].ping < PING_TIMEOUT && StrStrIA(players[i].name, name)) {
+												WriteBuffer(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xEC), (char *)(players[i].base + 0xEC), sizeof(float) * 2);
+												WriteFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0xE8), ReadFloat(GetCurrentProcess(), (void *)(players[i].base + 0xE8)) + PLAYER_RADIUS);
+												break;
+											}
+										}
 									}
-								}
+								} else if (memcmp(input, "rec begin", 9) == 0) {
+									for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+										if (recordings[i].state == RECORDING_RECORDING) {
+											recordings[i].state = RECORDING_STOPPED;
+											recordings[i].frame = 0;
+										}
+									}
 
-								ArrayFree(&recordings[index].frames);
-								recordings[index].frames = ArrayNew(sizeof(FRAME));
-								recordings[index].level = level;
-								recordings[index].state = RECORDING_RECORDING;
-								recordings[index].frame = 0;
-							} else if (memcmp(chat_input, "/rec end", 8) == 0) {
-								for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
-									if (recordings[i].state == RECORDING_RECORDING) {
-										recordings[i].state = RECORDING_STOPPED;
-										recordings[i].frame = 0;
+									int index = settings.character * ACTORS_PER_CHARACTER;
+									int length = index + ACTORS_PER_CHARACTER;
+									for (; index < settings.character + length; ++index) {
+										if (recordings[index].frames.length == 0) {
+											break;
+										}
 									}
-								}
-							} else if (memcmp(chat_input, "/rec delete ", 12) == 0) {
-								if (memcmp(chat_input + 12, "all", 3) == 0) {
-									for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++ i) {
-										ArrayFree(&recordings[i].frames);
-										recordings[i].frames = ArrayNew(sizeof(FRAME));
-										recordings[i].level = recordings[i].frame = 0;
-										recordings[i].state = RECORDING_STOPPED;
-									}
-								} else {
-									int index = atoi(chat_input + 12);
+
 									ArrayFree(&recordings[index].frames);
 									recordings[index].frames = ArrayNew(sizeof(FRAME));
-									recordings[index].level = recordings[index].frame = 0;
-									recordings[index].state = RECORDING_STOPPED;
-								}
-							} else if (memcmp(chat_input, "/rec play ", 10) == 0) {
-								if (memcmp(chat_input + 10, "all", 3) == 0) {
-									for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
-										if (recordings[i].level == level && recordings[i].frames.length > 0) {
-											recordings[i].frame = 0;
-											recordings[i].state = RECORDING_PLAYING;
-										}
-									}
-								} else {
-									int index = atoi(chat_input + 10);
-									if (recordings[index].level == level && recordings[index].frames.length > 0) {
-										recordings[index].frame = 0;
-										recordings[index].state = RECORDING_PLAYING;
-									}
-								}
-							} else if (memcmp(chat_input, "/rec stop ", 10) == 0) {
-								if (memcmp(chat_input + 10, "all", 3) == 0) {
-									for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
-										recordings[i].state = RECORDING_STOPPED;
-										recordings[i].frame = 0;
-									}
-								} else {
-									int index = atoi(chat_input + 10);
-									recordings[index].state = RECORDING_STOPPED;
+									recordings[index].level = level;
+									recordings[index].state = RECORDING_RECORDING;
 									recordings[index].frame = 0;
-								}
-							} else if (memcmp(chat_input, "/rec pause ", 11) == 0) {
-								if (memcmp(chat_input + 11, "all", 3) == 0) {
+								} else if (memcmp(input, "rec end", 7) == 0) {
 									for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
-										if (recordings[i].level == level && recordings[i].frames.length > 0) {
-											recordings[i].state = RECORDING_PAUSED;
+										if (recordings[i].state == RECORDING_RECORDING) {
+											recordings[i].state = RECORDING_STOPPED;
+											recordings[i].frame = 0;
 										}
 									}
-								} else {
-									int index = atoi(chat_input + 11);
-									if (recordings[index].level == level && recordings[index].frames.length > 0) {
-										recordings[index].state = RECORDING_PAUSED;
+								} else if (memcmp(input, "rec delete ", 11) == 0) {
+									if (memcmp(input + 11, "all", 3) == 0) {
+										for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+											ArrayFree(&recordings[i].frames);
+											recordings[i].frames = ArrayNew(sizeof(FRAME));
+											recordings[i].level = recordings[i].frame = 0;
+											recordings[i].state = RECORDING_STOPPED;
+										}
+									} else {
+										int index = atoi(input + 11);
+										ArrayFree(&recordings[index].frames);
+										recordings[index].frames = ArrayNew(sizeof(FRAME));
+										recordings[index].level = recordings[index].frame = 0;
+										recordings[index].state = RECORDING_STOPPED;
 									}
-								}
-							} else if (memcmp(chat_input, "/rec unpause ", 13) == 0) {
-								if (memcmp(chat_input + 13, "all", 3) == 0) {
-									for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
-										if (recordings[i].level == level && recordings[i].frames.length > 0) {
-											recordings[i].state = RECORDING_PLAYING;
+								} else if (memcmp(input, "rec play ", 9) == 0) {
+									if (memcmp(input + 9, "all", 3) == 0) {
+										for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+											if (recordings[i].level == level && recordings[i].frames.length > 0) {
+												recordings[i].frame = 0;
+												recordings[i].state = RECORDING_PLAYING;
+											}
+										}
+									} else {
+										int index = atoi(input + 9);
+										if (recordings[index].level == level && recordings[index].frames.length > 0) {
+											recordings[index].frame = 0;
+											recordings[index].state = RECORDING_PLAYING;
 										}
 									}
+								} else if (memcmp(input, "rec stop ", 9) == 0) {
+									if (memcmp(input + 9, "all", 3) == 0) {
+										for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+											recordings[i].state = RECORDING_STOPPED;
+											recordings[i].frame = 0;
+										}
+									} else {
+										int index = atoi(input + 9);
+										recordings[index].state = RECORDING_STOPPED;
+										recordings[index].frame = 0;
+									}
+								} else if (memcmp(input, "rec pause ", 10) == 0) {
+									if (memcmp(input + 10, "all", 3) == 0) {
+										for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+											if (recordings[i].level == level && recordings[i].frames.length > 0) {
+												recordings[i].state = RECORDING_PAUSED;
+											}
+										}
+									} else {
+										int index = atoi(input + 10);
+										if (recordings[index].level == level && recordings[index].frames.length > 0) {
+											recordings[index].state = RECORDING_PAUSED;
+										}
+									}
+								} else if (memcmp(input, "rec unpause ", 12) == 0) {
+									if (memcmp(input + 12, "all", 3) == 0) {
+										for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+											if (recordings[i].level == level && recordings[i].frames.length > 0) {
+												recordings[i].state = RECORDING_PLAYING;
+											}
+										}
+									} else {
+										int index = atoi(input + 12);
+										if (recordings[index].level == level && recordings[index].frames.length > 0) {
+											recordings[index].state = RECORDING_PLAYING;
+										}
+									}
+								} else if (memcmp(input, "rec list", 8) == 0) {
+									char msg[0xFFF] = { 0 };
+
+									sprintf(msg, "Recording List - Level 0x%x:\n", level);
+									EXPORT_AddChatMessage(msg);
+
+									for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+										if (recordings[i].frames.length > 0) {
+											sprintf(msg, "    %d - Duration %d - Level 0x%x - %s\n", i, recordings[i].frames.length, recordings[i].level, CHARACTER_NAMES[(int)(i / ACTORS_PER_CHARACTER)]);
+											EXPORT_AddChatMessage(msg);
+										}
+									}
+
+									EXPORT_AddChatMessage("End of Recording List\n");
+								} else if (memcmp(input, "dolly add", 9) == 0) {
+									if (length > 10 && input[9] == ' ') {
+										int time = atoi(input + 10);
+										if (time >= 0) {
+											MARKER marker = Marker(time);
+											AddMarker(&marker);
+
+											if (marker.frame != 0 && dolly_markers.length == 1) {
+												marker.frame = 0;
+												AddMarker(&marker);
+											}
+										}
+									} else {
+										MARKER marker = Marker(0);
+
+										for (DWORD i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
+											if (recordings[i].state == RECORDING_PLAYING || recordings[i].state == RECORDING_PAUSED) {
+												marker.frame = recordings[i].frame;
+											}
+										}
+
+										AddMarker(&marker);
+
+										if (marker.frame != 0 && dolly_markers.length == 1) {
+											marker.frame = 0;
+											AddMarker(&marker);
+										}
+									}
+								} else if (memcmp(input, "dolly play", 10) == 0) {
+									if (dolly_markers.length > 1) {
+										dolly_frame = -1;
+
+										for (DWORD i = 0; i < dolly_markers.length; ++i) {
+											MARKER *marker = (MARKER *)ArrayGet(&dolly_markers, 0);
+											marker->position[4] = (float)((int)marker->position[4] % 0x10000);
+										}
+
+										((MARKER *)ArrayGet(&dolly_markers, 0))->position[4] += 0x10000;
+										for (DWORD i = 1; i < dolly_markers.length; ++i) {
+											MARKER *previous = (MARKER *)ArrayGet(&dolly_markers, i - 1);
+											MARKER *marker = (MARKER *)ArrayGet(&dolly_markers, i);
+
+											int ry = (int)marker->position[4];
+											while (ry < previous->position[4]) {
+												ry += 0x10000;
+											}
+
+											if (abs((int)((ry - 0x10000) - previous->position[4])) < abs((int)(ry - previous->position[4]))) {
+												ry -= 0x10000;
+											}
+
+											marker->position[4] = (float)ry;
+										}
+
+										dolly_frame = 0;
+									} else {
+										dolly_frame = -1;
+									}
+								} else if (memcmp(input, "dolly hide", 10) == 0) {
+									dolly_show = false;
+								} else if (memcmp(input, "dolly show", 10) == 0) {
+									dolly_show = true;
+								} else if (memcmp(input, "dolly reset", 11) == 0) {
+									dolly_frame = -1;
+									ArrayFree(&dolly_markers);
+									dolly_markers = ArrayNew(sizeof(MARKER));
+
+									WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x68), 2);
+									WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x4FE), 1);
+									WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x4F4), 0);
+									WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x503), 0);
+									WriteChar(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x505), 0);
+									WriteFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x158), 1);
+									WriteFloat(GetCurrentProcess(), (void *)(GetPlayerBase() + 0x15C), 1);
 								} else {
-									int index = atoi(chat_input + 13);
-									if (recordings[index].level == level && recordings[index].frames.length > 0) {
-										recordings[index].state = RECORDING_PLAYING;
-									}
-								}
-							} else if (memcmp(chat_input, "/rec list", 9) == 0) {
-								char msg[0xFFF] = { 0 };
-
-								sprintf(msg, "Recording List - Level 0x%x:\n", level);
-								EXPORT_AddChatMessage(msg);
-								
-								for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
-									if (recordings[i].frames.length > 0) {
-										sprintf(msg, "    %d - Duration %d - Level 0x%x - %s\n", i, recordings[i].frames.length, recordings[i].level, CHARACTER_NAMES[(int)(i / ACTORS_PER_CHARACTER)]);
-										EXPORT_AddChatMessage(msg);
-									}
+									wchar_t *command = (wchar_t *)malloc((length + 3) * sizeof(wchar_t));
+									CharToWChar(command, input);
+									command[length] = '\r';
+									command[length + 1] = '\n';
+									command[length + 2] = 0;
+									ExecuteCommand(command);
+									free(command);
 								}
 
-								EXPORT_AddChatMessage("End of Recording List\n");
-							} else {
-								wchar_t *command = (wchar_t *)malloc((chat_input_length + 2) * sizeof(wchar_t));
-								CharToWChar(command, chat_input + 1);
-								command[chat_input_length - 1] = '\r';
-								command[chat_input_length] = '\n';
-								command[chat_input_length + 1] = 0;
-								ExecuteCommand(command);
-								free(command);
-							}
+								input = next ? next + 1 : 0;
+							} while (input);
 						} else if (host_pid && SendChatMessage && chat_input_length > 0) {
 							HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
 							if (process) {
@@ -811,7 +1066,6 @@ void HandleMessage(LPMSG lpMsg) {
 						chat_input_length = 0;
 						chat_input = (char *)realloc(chat_input, 1);
 						*chat_input = 0;
-						chat_mode = false;
 						cursor_index = 0;
 						chat_input_alloc = 1;
 					}
@@ -824,6 +1078,10 @@ void HandleMessage(LPMSG lpMsg) {
 
 DWORD GetPlayerBase() {
 	return (DWORD)GetPointer(GetCurrentProcess(), 5, base_path, 0xCC, 0x4A4, 0x214, 0x00);
+}
+
+DWORD GetCameraBase() {
+	return (DWORD)GetPointer(GetCurrentProcess(), 4, base_path, 0xCC, 0x70, 0x00);
 }
 
 void WriteText(LPDIRECT3DDEVICE9 device, int pt, UINT weight, DWORD align, char *font, DWORD color, int x, int y, char *text, int length) {
@@ -908,26 +1166,27 @@ bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]) {
 	float height = (float)rect.bottom - rect.top;
 	float fov = roundf(ReadFloat(GetCurrentProcess(), GetPointer(GetCurrentProcess(), 4, base_path, 0xCC, 0x1CC, 0x318)) * 90);
 	fov = tanf((float)((fov < 1 || fov > 170 ? 90 : fov) * PI / 180) / 2);
+	float ratiofov = (width / height) / fov;
 
 	ReadBuffer(GetCurrentProcess(), (void *)projection_base, (char *)pProjection.m, sizeof(float) * 16);
 
 	pProjection.m[0][0] /= fov;
-	pProjection.m[0][1] *= 1.7777777777777777f / fov;
+	pProjection.m[0][1] *= ratiofov;
 	pProjection.m[0][3] = pProjection.m[0][2];
 	pProjection.m[0][2] *= 0.998f;
 
 	pProjection.m[1][0] /= fov;
-	pProjection.m[1][1] *= 1.7777777777777777f / fov;
+	pProjection.m[1][1] *= ratiofov;
 	pProjection.m[1][3] = pProjection.m[1][2];
 	pProjection.m[1][2] *= 0.998f;
 
 	pProjection.m[2][0] /= fov;
-	pProjection.m[2][1] *= 1.777777777777777f / fov;
+	pProjection.m[2][1] *= ratiofov;
 	pProjection.m[2][3] = pProjection.m[2][2];
 	pProjection.m[2][2] *= 0.998f;
 
 	pProjection.m[3][0] /= fov;
-	pProjection.m[3][1] *= 1.7777777777777777f / fov;
+	pProjection.m[3][1] *= ratiofov;
 	pProjection.m[3][3] = pProjection.m[3][2];
 	pProjection.m[3][2] *= 0.998f;
 
@@ -945,7 +1204,7 @@ bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]) {
 
 	out[0] = (((vOut.x / vOut.w) + 1.0f) / 2.0f) * width;
 	out[1] = ((1.0f - (vOut.y / vOut.w)) / 2.0f) * height;
-	out[2] = vOut.z / vOut.w;
+	out[2] = vOut.w;
 
 	return !(vOut.z < 0 || vOut.w < 0);
 }
@@ -1250,12 +1509,13 @@ void MainThread() {
 
 	TrampolineHook(EndSceneHook, (void *)GetD3D9Exports()[D3D9_EXPORT_ENDSCENE], (void **)&EndSceneOriginal);
 
-	TrampolineHook(PeekMessageHook, PeekMessage, (void **)&PeekMessageOriginal);
+	// TrampolineHook(PeekMessageHook, PeekMessage, (void **)&PeekMessageOriginal);
 	TrampolineHook(PeekMessageWHook, PeekMessageW, (void **)&PeekMessageWOriginal);
-	TrampolineHook(PeekMessageAHook, PeekMessageA, (void **)&PeekMessageAOriginal);
-	TrampolineHook(GetMessageHook, GetMessage, (void **)&GetMessageOriginal);
-	TrampolineHook(GetMessageWHook, GetMessageW, (void **)&GetMessageWOriginal);
-	TrampolineHook(GetMessageAHook, GetMessageA, (void **)&GetMessageAOriginal);
+	// TrampolineHook(PeekMessageAHook, PeekMessageA, (void **)&PeekMessageAOriginal);
+	// TrampolineHook(GetMessageHook, GetMessage, (void **)&GetMessageOriginal);
+	// TrampolineHook(GetMessageWHook, GetMessageW, (void **)&GetMessageWOriginal);
+	// TrampolineHook(GetMessageAHook, GetMessageA, (void **)&GetMessageAOriginal);
+
 	TrampolineHook(LoadLibraryAHook, LoadLibraryA, (void **)&LoadLibraryAOriginal);
 
 	// Scan for settings just incase update isn't called

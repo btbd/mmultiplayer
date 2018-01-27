@@ -4,6 +4,7 @@
 
 char index = 0;
 SOCKET server_socket, client_socket;
+SOCKADDR_IN server_addr = { 0 };
 char clients[0xFF][0xFF];
 int clients_length = 0;
 SETTINGS settings = { 0 };
@@ -40,33 +41,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		return 1;
 	}
 
-	WSADATA wsaData;
+	WSADATA wsaData = { 0 };
+	struct sockaddr_in self = { 0 };
 	SOCKADDR_IN server = { 0 };
-	struct sockaddr_in self;
 
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData)) {
 		printf("wsastartup failed\n");
 		return 1;
 	}
-
-	server.sin_family = AF_INET;
-	server.sin_port = htons(SERVER_PORT);
-	server.sin_addr.s_addr = inet_addr(IP);
-
-	if ((server_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
-		printf("unable to create a server socket\n");
-		return 1;
-	}
-
-	if (connect(server_socket, (SOCKADDR *)&server, sizeof(server)) == SOCKET_ERROR) {
-		MessageBoxA(0, "Unable to connect to the server", "Error", MB_ICONWARNING);
-		printf("unable to connect\n");
-		return 1;
-	}
-
-	printf("connected\n");
-
-	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)WindowThread, 0, 0, 0);
 
 	client_socket = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -83,6 +65,63 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		return 1;
 	}
 
+	struct addrinfo *result = 0;
+	getaddrinfo("soaphub.org", 0, 0, &result);
+	for (; result; result = result->ai_next) {
+		if (result->ai_family == AF_INET) {
+			server.sin_addr = ((SOCKADDR_IN *)result->ai_addr)->sin_addr;
+		}
+	}
+
+	printf("server ip: %s\n", inet_ntoa(server.sin_addr));
+
+	if (!server.sin_addr.s_addr) {
+		printf("unable to get server ip\n");
+		MessageBoxA(0, "Unable to acquire server IP", "Error", 0);
+		return 0;
+	}
+
+	server.sin_family = AF_INET;
+	server_addr = server;
+	server_addr.sin_port = htons(CLIENT_PORT);
+	server.sin_port = htons(SERVER_PORT);
+
+	if (!TestUDP()) {
+		char msg[0xFF] = { 0 };
+		sprintf(msg, "Check your network connection and make sure that port %d (UDP) is open.", CLIENT_PORT);
+		MessageBoxA(0, msg, "Error", 0);
+		return 1;
+	}
+
+	if ((server_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
+		printf("unable to create a server socket\n");
+		return 1;
+	}
+
+	if (connect(server_socket, (SOCKADDR *)&server, sizeof(server)) == SOCKET_ERROR) {
+		MessageBoxA(0, "Unable to connect to the server", "Error", MB_ICONWARNING);
+		printf("unable to connect\n");
+		return 1;
+	}
+
+	printf("connected\n");
+
+	send(server_socket, "v\n", 2, 0);
+	char version[0xFF] = { 0 };
+	int len = recv(server_socket, version, sizeof(version), 0);
+	if (version[len - 1] == '\n') version[len - 1] = 0;
+
+	printf("server version: %s\nclient version: %s\n", version, VERSION);
+	if (strcmp(version, VERSION) != 0) {
+		char msg[0xFF] = { 0 };
+		ShellExecuteA(0, 0, "http://www.github.com/btbd/mmultiplayer/releases", 0, 0, SW_SHOW);
+		sprintf(msg, "Outdated version\nServer: %s\nClient: %s", version, VERSION);
+		MessageBoxA(0, msg, "Error", MB_ICONWARNING);
+		printf("outdated version");
+		return 1;
+	}
+
+	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)WindowThread, 0, 0, 0);
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)ProcessListener, 0, 0, 0);
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)Listener, 0, 0, 0);
 	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)Sender, 0, 0, 0);
@@ -104,6 +143,35 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 
 	return 0;
+}
+
+void TestUDPListener(bool *b) {
+	struct sockaddr_in client = { 0 };
+	char buffer[8] = { 0 };
+
+	for (;;) {
+		int size = sizeof(client);
+		if (recvfrom(client_socket, buffer, sizeof(buffer), 0, (struct sockaddr *)&client, &size) > 0 && memcmp(buffer, "received", 8) == 0) {
+			*b = true;
+			return;
+		}
+	}
+}
+
+bool TestUDP() {
+	bool r = false;
+	HANDLE thread = CreateThread(0, 0, (LPTHREAD_START_ROUTINE)TestUDPListener, &r, 0, 0);
+	for (int i = 0; i < 30; ++i) {
+		sendto(client_socket, "pinging", 7, 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+		if (r) {
+			TerminateThread(thread, 0);
+			return true;
+		}
+		Sleep(100);
+	}
+
+	TerminateThread(thread, 0);
+	return false;
 }
 
 void ServerListener() {
@@ -323,9 +391,10 @@ void Sender() {
 			memcpy(packet.name, settings.username, 33);
 			packet.name[32] = 0;
 
-			for (int i = 0; i < clients_length; ++i) {
+			sendto(client_socket, (char *)&packet, sizeof(PACKET), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
+			/* for (int i = 0; i < clients_length; ++i) {
 				Send(clients[i], (char *)&packet, sizeof(PACKET));
-			}
+			} */
 		}
 
 	next:
@@ -381,7 +450,7 @@ bool CopyMaps(DWORD pid) {
 
 	TerminateProcess(process, 0);
 	CloseHandle(process);
-	
+
 	if (elev.TokenIsElevated) {
 		ShellExecuteA(0, "runas", to, 0, 0, SW_HIDE);
 	} else {

@@ -55,10 +55,8 @@ typedef struct {
 #define GetGameWindow() FindWindowExA(0, 0, "LaunchUnrealUWindowsClient", 0)
 
 #define SERVER_PORT 2783
-#define CLIENT_PORT 7319
-// #define IP "127.0.0.1"
-// #define IP "184.172.214.39"
-#define IP "69.163.180.98"
+#define CLIENT_PORT 3659
+#define VERSION "1.0.4"
 
 enum {
 	CHARACTER_FAITH = 0,
@@ -90,6 +88,7 @@ void WindowThread();
 void SaveSettings(SETTINGS *settings, bool startup);
 bool CopyMaps(DWORD pid);
 void LeaveRoom();
+bool TestUDP();
 DWORD GetFileSize(char *path);
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);

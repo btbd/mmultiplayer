@@ -34,16 +34,6 @@ typedef struct {
 	DWORD color;
 } D3D_VERTEX;
 
-void WriteText(LPDIRECT3DDEVICE9 device, int pt, UINT weight, DWORD align, char *font, DWORD color, int x, int y, char *text, int length);
-void DrawRect(LPDIRECT3DDEVICE9 pDevice, float x, float y, float width, float height, D3DCOLOR color, bool init_render_state);
-bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]);
-DWORD GetPlayerBase();
-void ExecuteCommand(wchar_t *command);
-bool IsGameWindow(HWND);
-void PrintMatrix(float m[4][4]);
-DWORD Hash(char *str);
-int GetInputWidth(LPD3DXFONT lpFont, char *str, int length);
-
 #define CHAT_DELAY 800
 
 typedef struct {
@@ -82,6 +72,11 @@ typedef struct {
 	long long rotation;
 } DEMO_FRAME;
 
+typedef struct {
+	int frame;
+	float position[5];
+} MARKER;
+
 enum {
 	RECORDING_STOPPED = 0,
 	RECORDING_RECORDING,
@@ -113,7 +108,7 @@ static char CHARACTER_NAMES[][0xFF] = {
 	"Faith",
 	"Kate",
 	"Celeste",
-	"Assault Celeste",
+	"Assassin",
 	"Jacknife",
 	"Miller",
 	"Kreeg",
@@ -126,3 +121,15 @@ static char CHARACTER_NAMES[][0xFF] = {
 #define PI 3.141592653589793
 #define PLAYER_HEIGHT ((float)185)
 #define PLAYER_RADIUS ((float)40)
+
+void WriteText(LPDIRECT3DDEVICE9 device, int pt, UINT weight, DWORD align, char *font, DWORD color, int x, int y, char *text, int length);
+void DrawRect(LPDIRECT3DDEVICE9 pDevice, float x, float y, float width, float height, D3DCOLOR color, bool init_render_state);
+bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]);
+DWORD GetPlayerBase();
+DWORD GetCameraBase();
+void ExecuteCommand(wchar_t *command);
+bool IsGameWindow(HWND);
+void PrintMatrix(float m[4][4]);
+DWORD Hash(char *str);
+int GetInputWidth(LPD3DXFONT lpFont, char *str, int length);
+MARKER Marker(int frame);

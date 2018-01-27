@@ -1,16 +1,16 @@
 # Mirror's Edge Multiplayer Mod
+
+[![GitHub release](https://img.shields.io/github/release/btbd/mmultiplayer.svg)](https://github.com/btbd/mmultiplayer/releases/latest)
+
 ## Setup
 
-1. Extract the newest release into a folder (it doesn't need to be the Mirror's Edge install folder), and make sure that `mdll.dll`, `mp_actors.me1`, and `MMultiplayer.exe` are in the same directory.
-2. Run `MMultiplayer.exe`. 
-	- Note: After the first time you run the Multiplayer Mod and it successfully attaches to Mirror's Edge, you can technically start the Multiplayer Mod after Mirror's Edge is running when at the Main Menu. However, if you experience any issues, try starting the Multiplayer Mod before Mirror's Edge.
-3. Run Mirror's Edge.
+1. Download the latest release from <a href="https://github.com/btbd/mmultiplayer/releases/latest">here</a> and extract it into any directory
+2. Run `MMultiplayer.exe`
+3. Run Mirror's Edge
 
-When you first run the Multiplayer Mod, you may see this message: http://i.imgur.com/iXNHhYI.png. If you do, click "More info" then "Run anyway".
+When you first run the Multiplayer Mod, you may see <a href="http://i.imgur.com/iXNHhYI.png">this message</a>. If you do, click "More info" then "Run anyway".
 
-You may also see this message: http://i.imgur.com/vFdkwbj.png. If you do, select both private and public networks, then click "Allow access".
-
-If others can see you, but you can't see them, try running `MMultiplayer.exe` in administrator mode and run Mirror's Edge in administrator mode. Also, check your firewall and make sure `MMultiplayer.exe` has access to both private and public networks.
+You may also see <a href="http://i.imgur.com/vFdkwbj.png">this message</a>. If you do, select both private and public networks, then click "Allow access".
 
 ## Usage
 
@@ -36,6 +36,8 @@ Putting a `/` as the first character in your message will execute your message a
 		- `/tp john`
 		- `/tp JO`
 		- `/tp j`
+- You can use `&` to perform multiple commands in one line.
+	- For example: `/tdpause & fov 120` slows the in-game speed and sets your fov to 120.
 
 #### Recording Commands
 
@@ -46,6 +48,15 @@ Putting a `/` as the first character in your message will execute your message a
 - `/rec pause <index>` pauses the playing recording at `<index>`. Use `/rec pause all` to pause all playing recordings.
 - `/rec unpause <index>` unpauses the playing recording at `<index>`. Use `/rec unpause all` to unpause all recordings.
 - `/rec delete <index>` deletes the recording at `<index>`. Use `/rec delete all` to delete all recordings.
+
+#### Dolly Camera Commands
+
+- `/dolly add <frame>` adds a dolly camera marker at your current position and rotation at `<frame>`.
+- `/dolly add` adds a dolly camera marker at your current position and rotation at the frame of the current recording.
+- `/dolly play` plays the dolly camera.
+- `/dolly reset` resets the dolly camera and all markers.
+- `/dolly show` shows the dolly path (on by default).
+- `/dolly hide` hides the dolly path.
 
 ## UI Info
 
@@ -67,6 +78,35 @@ Putting a `/` as the first character in your message will execute your message a
 
 **Chat Bind** - Your chat keybind that you press in-game to open chat.
 
+## Troubleshooting
+
+The mod should inform you if an error occurs that prevents it from working properly. Possible error explanations:
+
+- <b>Unable to load the sublevel</b>: 
+	- `mp_actors.me1` is not in the same directory as `MMultiplayer.exe`.
+	- `MMultiplayer.exe` has no permissions due to Windows or antivirus.
+- <b>Unable to load the DLL</b>: 
+	- `MDLL.dll` is not in the same directory as `MMultiplayer.exe`.
+	- `MMultiplayer.exe` has no permissions due to Windows or antivirus.
+- <b>Unable to acquire server IP</b>: 
+	- `MMultiplayer.exe` is unable to acquire the server IP from the local DNS server.
+	- Network connection is disabled.
+	- `MMultiplayer.exe` has no network access through your router firewall or Windows firewall.
+- <b>Check your network connection and make sure that port 3659 (UDP) is open</b>:
+	- Port 3659 is not open for UDP in your router firewall.
+	- `MMultiplayer.exe` has no access through your Windows firewall.
+- <b>Unable to connect to server</b>:
+	- Port 2783 is not open for TCP in your router firewall.
+	- `MMultiplayer.exe` has no access through your Windows firewall.
+- <i>Mirror's Edge continuously shows splash screen and then restarts</i>:
+	- `MMultiplayer.exe` has no file permissions to copy `mp_actors.me1` or check its existence due to Windows or antivirus.
+- <i>Chat screen doesn't show</i>:
+	- `MMultiplayer.exe` and Mirror's Edge are running at different permissions. They need to be at the same permission level to communicate properly.
+	- Keybind is not properly set.
+- <i>Chat screen shows but unable to send message</i>
+	- `MMultiplayer.exe` and Mirror's Edge are running at different permissions. They need to be at the same permission level to communicate properly.
+	- Network connection is disabled.
+	
 ## Communicative Maps
 
 You are able to create maps that communicate with the multiplayer mod (for co-op or gamemodes) by using Kismet and console events.
@@ -89,7 +129,7 @@ When the current user becomes host and a person joins/leaves the level, the cons
 ### Commands
 `echo <msg>` - Echoes `<msg>` in the chat locally
 
-`broadcast <msg>` - Broadcasts `<msg>` to everyone in the current room
+`broadcast <msg>` - Broadcasts `<msg>` to everyone in the current room. Use `{me}` for the current name of the user.
 
 ## Contributing
 
@@ -105,7 +145,7 @@ When compiling either the DLL or EXE to test your contributions, be sure that th
 
 In addition, be sure the compiler configuration is set to `Release` instead of `Debug` for faster optimization, and be sure that the compiler configuration is set to `x86` because Mirror's Edge is a 32-bit application.
 
-For the DLL, you will need to include the DirectX 9 Library. You can download the SDK from here: https://www.microsoft.com/en-us/download/confirmation.aspx?id=6812
+For the DLL, you will need to include the DirectX 9 Library. You can download the SDK from <a href="https://www.microsoft.com/en-us/download/confirmation.aspx?id=6812">here</a>.
 
 Once downloaded and installed, open the DLL project in Visual Studio and go to `Project -> Project Properties -> Configuration Properties -> VC++ Directories` and add the SDK include and library directories accordingly.
 
