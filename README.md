@@ -58,6 +58,11 @@ Putting a `/` as the first character in your message will execute your message a
 - `/dolly show` shows the dolly path (on by default).
 - `/dolly hide` hides the dolly path.
 
+
+#### Miscellaneous Commands
+
+- `/speed <speed>` sets the engine speed to the specified value.
+
 ## UI Info
 
 *Any changes you make will not be saved or applied until you click the `Apply` button.*
@@ -130,6 +135,8 @@ When the current user becomes host and a person joins/leaves the level, the cons
 `echo <msg>` - Echoes `<msg>` in the chat locally
 
 `broadcast <msg>` - Broadcasts `<msg>` to everyone in the current room. Use `{me}` for the current name of the user.
+
+`mpsendto <index> <msg>` - Sends a Kismet command `<msg>` to the specified client at `<index>`.
 
 ## Contributing
 

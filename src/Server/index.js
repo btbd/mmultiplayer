@@ -36,6 +36,17 @@ var server = net.createServer(function(c) {
 						clients[e].client.write("k" + d[i].slice(1) + "\n");
 					}
 				}
+			} else if (d[i].charAt(0) == 't') {
+				var index = parseInt(d[i].slice(1));
+				var s = d[i].slice(d[i].indexOf(" ") + 1);
+				if (index >= 0 && s) {
+					for (var e = 0; e < clients.length; ++e) {
+						if (clients[e].room === client.room && clients[e].level === client.level && getCharacterIndex(e) === index) {
+							clients[e].client.write("k" + s + "\n");
+							break;
+						}
+					}
+				}
 			} else if (d[i].charAt(0) == 'l') {
 				broadcastRL("kce mpleave\n");
 				client.level_time = Date.now();
@@ -45,7 +56,7 @@ var server = net.createServer(function(c) {
 			} else if (d[i].charAt(0) == 'p') {
 				client.client.write("p\n");
 			} else if (d[i].charAt(0) == 'v') {
-				client.client.write("1.0.4\n");
+				client.client.write("1.0.5\n");
 			}
 		}
 	});
@@ -101,15 +112,19 @@ function getClients(e) {
 	return s;
 }
 
+function getCharacterIndex(i) {
+	var index = 0;
+	for (var e = 0; e < i; ++e) {
+		if (clients[e].room === clients[i].room && clients[e].character === clients[i].character) ++index;
+	}
+	return index + (clients[i].character * ACTORS_PER_CHARACTER);
+}
+
 function updateClients() {
 	for (var i = 0; i < clients.length; ++i) {
 		// clients[i].client.write("c" + getClients(clients[i]) + "\n");
-		var index = 0;
-		for (var e = 0; e < i; ++e) {
-			if (clients[e].room === clients[i].room && clients[e].character === clients[i].character) ++index;
-		}
-		index += (clients[i].character * ACTORS_PER_CHARACTER);
-		clients[i].client.write("i" + index + "\n");
+		
+		clients[i].client.write("i" + getCharacterIndex(i) + "\n");
 	}
 }
 
