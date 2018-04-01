@@ -56,7 +56,7 @@ var server = net.createServer(function(c) {
 			} else if (d[i].charAt(0) == 'p') {
 				client.client.write("p\n");
 			} else if (d[i].charAt(0) == 'v') {
-				client.client.write("1.0.5\n");
+				client.client.write("1.0.6\n");
 			}
 		}
 	});
