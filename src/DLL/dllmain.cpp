@@ -5,10 +5,9 @@
 static PLAYER players[CHARACTER_COUNT * ACTORS_PER_CHARACTER] = { 0 };
 static DWORD level = 0;
 static DWORD host_pid = 0;
-static DWORD SendChatMessage = 0;
-static DWORD SendKismetMessage = 0;
+static DWORD SendServer = 0;
 
-DWORD base_path = 0, LevelLoadBase = 0, SublevelFinishLoadBase = 0, CompareStringsBack = 0, projection_base = 0, engine_info = 0, level_stream_command = 0, string_table = 0;
+DWORD base_path = 0, LevelLoadBase = 0, SublevelFinishLoadBase = 0, CompareStringsBack = 0, projection_base = 0, engine_info = 0, level_stream_command = 0, string_table = 0, engine_base = 0;
 bool loading = false;
 char level_name[0xFF] = { 0 };
 wchar_t wlevel_name[0xFF] = { 0 };
@@ -40,6 +39,7 @@ HRESULT(__stdcall *EndSceneOriginal)(LPDIRECT3DDEVICE9 pDevice);
 void(*UpdateProjectionOriginal)();
 void **(__thiscall *ExecuteCommandOriginal)(int, void **, int, int);
 void(*GetEngineInfoOriginal)();
+void(*GetEngineBaseOriginal)();
 DWORD *(__thiscall *CopyStringOriginal)(int this_, wchar_t *src);
 BOOL(WINAPI *PeekMessageOriginal)(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg);
 BOOL(WINAPI *PeekMessageWOriginal)(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg);
@@ -243,15 +243,17 @@ int __fastcall UpdateBonesHook(int this_, void *idle_, int bones) {
 	return UpdateBonesOriginal(this_, bones);
 }
 
-void SendLevel() {
-	HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
-	if (process) {
-		LPVOID param = VirtualAllocEx(process, 0, 2, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-		WriteBuffer(process, param, "\x01\x00", 2);
-		WaitForSingleObject(CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendKismetMessage, param, 0, 0), INFINITE);
-		VirtualFreeEx(process, param, 0, MEM_RELEASE);
+void Send(char *str) {
+	if (str) {
+		HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
+		if (process) {
+			int length = strlen(str);
+			LPVOID param = VirtualAllocEx(process, 0, length + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			WriteBuffer(process, param, str, length);
+			CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendServer, param, 0, 0);
+		}
+		CloseHandle(process);
 	}
-	CloseHandle(process);
 }
 
 int __fastcall LevelLoadHook(void *this_, void *idle_, int a2, __int64 a3) {
@@ -269,7 +271,9 @@ int __fastcall LevelLoadHook(void *this_, void *idle_, int a2, __int64 a3) {
 	if (_stricmp(level_name, "TdMainMenu") != 0) {
 		ExecuteCommand(L"streammap mp_actors\r\n");
 	} else {
-		CreateThread(0, 0, (LPTHREAD_START_ROUTINE)SendLevel, 0, 0, 0);
+		char msg[0xFF] = { 0 };
+		sprintf(msg, "l%d\n", level);
+		Send(msg);
 	}
 
 	printf("loaded %s - 0x%x\n", level_name, level);
@@ -284,7 +288,10 @@ int __fastcall SublevelFinishLoadHook(DWORD *this_, void *idle_, int a2, int a3)
 		wchar_t *name = (wchar_t *)GetPointer(GetCurrentProcess(), 3, string_table, ReadInt(GetCurrentProcess(), (void *)(a2 + 0x3C)) * 4, 0x10);
 		if (name && _wcsnicmp(name, L"mp_actors", 9) == 0) {
 			loading = false;
-			CreateThread(0, 0, (LPTHREAD_START_ROUTINE)SendLevel, 0, 0, 0);
+			
+			char msg[0xFF] = { 0 };
+			sprintf(msg, "l%d\n", level);
+			Send(msg);
 		}
 	}
 
@@ -856,6 +863,10 @@ void HandleMessage(LPMSG lpMsg) {
 											}
 										}
 									}
+								} else if (memcmp(input, "speed ", 6) == 0) {
+									if (engine_base) {
+										WriteFloat(GetCurrentProcess(), (void *)(engine_base + 0xC2C), (float)atof(input + 6));
+									}
 								} else if (memcmp(input, "rec begin", 9) == 0) {
 									for (int i = 0; i < sizeof(recordings) / sizeof(recordings[0]); ++i) {
 										if (recordings[i].state == RECORDING_RECORDING) {
@@ -1051,12 +1062,13 @@ void HandleMessage(LPMSG lpMsg) {
 
 								input = next ? next + 1 : 0;
 							} while (input);
-						} else if (host_pid && SendChatMessage && chat_input_length > 0) {
+						} else if (host_pid && SendServer && chat_input_length > 0) {
 							HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
 							if (process) {
-								LPVOID param = VirtualAllocEx(process, 0, chat_input_length + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-								WriteBuffer(process, param, chat_input, chat_input_length + 1);
-								WaitForSingleObject(CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendChatMessage, param, 0, 0), INFINITE);
+								LPVOID param = VirtualAllocEx(process, 0, chat_input_length + 2, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+								WriteChar(process, param, 'm');
+								WriteBuffer(process, (void *)((DWORD)param + 1), chat_input, chat_input_length + 2);
+								WaitForSingleObject(CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendServer, param, 0, 0), INFINITE);
 								VirtualFreeEx(process, param, 0, MEM_RELEASE);
 							}
 							CloseHandle(process);
@@ -1208,28 +1220,12 @@ bool WorldToScreen(LPDIRECT3DDEVICE9 pDevice, float position[3], float out[3]) {
 	return !(vOut.z < 0 || vOut.w < 0);
 }
 
-void BroadcastThread(char *str) {
-	printf("broadcast command: %s\n", (char *)((DWORD)str + 1));
-
-	DWORD length = strlen(str) + 2;
-	HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
-	if (process) {
-		LPVOID param = VirtualAllocEx(process, 0, length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-		WriteBuffer(process, param, str, length);
-		WaitForSingleObject(CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendChatMessage, param, 0, 0), INFINITE);
-		VirtualFreeEx(process, param, 0, MEM_RELEASE);
-	}
-	CloseHandle(process);
-
-	free(str);
-}
-
 void **__fastcall ExecuteCommandHook(int this_, void *idle_, void **a2, int a3, int a4) {
 	if (a3 && ReadInt(GetCurrentProcess, (void *)(a3 + 4))) {
-		int length = ReadInt(GetCurrentProcess, (void *)(a3 + 4));
 		wchar_t *command = *(wchar_t **)a3;
-		printf("command: %ws\n", command);
-		if (SendKismetMessage) {
+		int length = wcslen(command);
+		printf("command (%d): %ws\n", length, command);
+		if (SendServer) {
 			if (length > 7 && memcmp(command, L"mpsend ", 14) == 0) {
 				command = (wchar_t *)((DWORD)command + 14);
 				char *str = (char *)malloc(length + 1);
@@ -1239,33 +1235,60 @@ void **__fastcall ExecuteCommandHook(int this_, void *idle_, void **a2, int a3, 
 
 				HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
 				if (process) {
-					LPVOID param = VirtualAllocEx(process, 0, length + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-					WriteBuffer(process, param, str, length + 1);
-					CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)SendKismetMessage, param, 0, 0);
+					char *msg = (char *)malloc(length + 3);
+					sprintf(msg, "k%s\n", str);
+					Send(msg);
+					free(msg);
+				}
+				CloseHandle(process);
+
+				free(str);
+			} else if (length > 9 && memcmp(command, L"mpsendto ", 18) == 0) {
+				command = (wchar_t *)((DWORD)command + 18);
+				char *str = (char *)malloc(length + 1);
+				WCharToChar(str, command);
+
+				printf("sendto command: %s\n", str);
+
+				int index = 0;
+				while (isblank(*str) && *str) ++str;
+
+				index = atoi(str);
+
+				while (!isblank(*str) && *str) ++str;
+				if (*str) ++str;
+
+				HANDLE process = OpenProcess(PROCESS_ALL_ACCESS, 0, host_pid);
+				if (process) {
+					printf("\tindex: %d\n\tmsg: %s\n", index, str);
+					char *msg = (char *)malloc(snprintf(0, 0, "t%d %s\n", index, str) + 1);
+					sprintf(msg, "t%d %s\n", index, str);
+					Send(msg);
+					free(msg);
 				}
 				CloseHandle(process);
 
 				free(str);
 			} else if (length > 5 && memcmp(command, L"echo ", 10) == 0) {
 				command = (wchar_t *)((DWORD)command + 10);
-				char *str = (char *)calloc(length + 2, 1);
-				WCharToChar(str, command);
+				char *str = (char *)calloc(length + 3, 1);
+				*str = 'e';
+				WCharToChar(str + 1, command);
 				char *end = strchr(str, '\n');
 				if (end) *end = 0;
 				strcat(str, "\r");
 
 				printf("echo command: %s\n", str);
-
-				EXPORT_AddChatMessage(str);
+				Send(str);
 
 				free(str);
 			} else if (length > 10 && memcmp(command, L"broadcast ", 20) == 0) {
 				command = (wchar_t *)((DWORD)command + 20);
 				char *str = (char *)malloc(length + 2);
-				*str = 1;
+				*str = 'b';
 				WCharToChar((char *)((DWORD)str + 1), command);
 
-				CreateThread(0, 0, (LPTHREAD_START_ROUTINE)BroadcastThread, str, 0, 0);
+				CreateThread(0, 0, (LPTHREAD_START_ROUTINE)Send, str, 0, 0);
 			}
 		}
 	}
@@ -1298,6 +1321,13 @@ __declspec(naked) void GetEngineInfoHook() {
 		mov eax, [ecx]
 		mov engine_info, eax
 		jmp GetEngineInfoOriginal
+	}
+}
+
+__declspec(naked) void GetEngineBaseHook() {
+	__asm {
+		mov engine_base, ecx
+		jmp GetEngineBaseOriginal
 	}
 }
 
@@ -1484,6 +1514,11 @@ void MainThread() {
 	TrampolineHook(GetEngineInfoHook, (void *)addr, (void **)&GetEngineInfoOriginal);
 	printf("get engine info: 0x%x\n", addr);
 
+	// 0xef90c0
+	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x56\x8B\xF1\x8B\x06\x8B\x90\x34\x01\x00\x00\xFF\xD2\xD8\x8E\xD8\x0C\x00\x00\x5E\xC3", "xxxxxxxxxxxxxxxxxxxxx");
+	TrampolineHook(GetEngineBaseHook, (void *)addr, (void **)&GetEngineBaseOriginal);
+	printf("get engine base: 0x%x\n", addr);
+
 	// 0xECAA90
 	addr = (DWORD)FindPattern(module.modBaseAddr, module.modBaseSize, "\x8B\x8E\xEC\x0B\x00\x00\x8B\x0C\x81\x3B\xCD\x74\x03\x09\x51\x60\x83\xC0\x01", "xxxxxxxxxxxxxxxxxxx");
 	WriteBuffer(GetCurrentProcess(), (void *)addr, "\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90\x90", 16);
@@ -1561,15 +1596,9 @@ EXPORT void EXPORT_SetHostPID(DWORD *in) {
 	}
 }
 
-EXPORT void EXPORT_SetSendChatMessage(DWORD *in) {
+EXPORT void EXPORT_SetSendServer(DWORD *in) {
 	if (in) {
-		SendChatMessage = *in;
-	}
-}
-
-EXPORT void EXPORT_SetSendKismetMessage(DWORD *in) {
-	if (in) {
-		SendKismetMessage = *in;
+		SendServer = *in;
 	}
 }
 

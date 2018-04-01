@@ -24,7 +24,7 @@ extern "C" {
 	EXPORT void EXPORT_GetLevelBase(DWORD *out);
 	EXPORT void EXPORT_SetHostPID(DWORD *in);
 	EXPORT void EXPORT_SetSendChatMessage(DWORD *in);
-	EXPORT void EXPORT_SetSendKismetMessage(DWORD *in);
+	EXPORT void EXPORT_SetSendServer(DWORD *in);
 	EXPORT void EXPORT_AddChatMessage(char *msg);
 	EXPORT void EXPORT_ExecuteCommand(char *command);
 }

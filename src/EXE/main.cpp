@@ -289,11 +289,8 @@ void ProcessListener() {
 				WriteInt(process, base, (int)GetCurrentProcessId());
 				WaitForSingleObject(CallFunction("EXPORT_SetHostPID", base), INFINITE);
 
-				WriteInt(process, base, (int)SendChatMessage);
-				WaitForSingleObject(CallFunction("EXPORT_SetSendChatMessage", base), INFINITE);
-
-				WriteInt(process, base, (int)SendKismetMessage);
-				WaitForSingleObject(CallFunction("EXPORT_SetSendKismetMessage", base), INFINITE);
+				WriteInt(process, base, (int)SendServer);
+				WaitForSingleObject(CallFunction("EXPORT_SetSendServer", base), INFINITE);
 
 				VirtualFreeEx(process, base, 0, MEM_RELEASE);
 			} else {
@@ -479,50 +476,58 @@ void Send(char *ip, char *buffer, int size) {
 	}
 }
 
-void SendChatMessage(char *str) {
+void SendServer(char *str) {
 	if (str) {
-		if (*str == 1) {
-			str = (char *)((DWORD)str + 1);
-			printf("sending broadcast msg: %s\n", str);
+		printf("sending");
+			
+		switch (*str) {
+			case 'l':
+				printf(" level");
+				break;
+			case 'k':
+				printf(" kismet msg");
+				break;
+			case 't':
+				printf(" sendto msg");
+				break;
+			case 'e': {
+				printf(" echo");
 
-			std::string repl(str);
-			repl = std::regex_replace(repl, std::regex("\\{me\\}"), settings.username);
-			str = _strdup(repl.c_str());
+				std::string repl(str + 1);
+				repl = std::regex_replace(repl, std::regex("\\{me\\}"), settings.username);
+				VirtualFree(str, 0, MEM_RELEASE);
 
-			char *msg = (char *)malloc(strlen(str) + 3);
-			int length = sprintf(msg, "m%s\n", str);
-			send(server_socket, msg, length, 0);
-			free(msg);
+				str = _strdup(repl.c_str());
+				DWORD length = strlen(str) + 1;
+				LPVOID msg = VirtualAllocEx(process, NULL, length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+				WriteBuffer(process, msg, str, length);
+				WaitForSingleObject(CallFunction("EXPORT_AddChatMessage", msg), INFINITE);
+				VirtualFreeEx(process, msg, 0, MEM_RELEASE);
+				free(str);
 
-			free(str);
-		} else {
-			printf("sending chat msg: %s\n", str);
-			char *msg = (char *)malloc(strlen(settings.username) + strlen(str) + 5);
-			int length = sprintf(msg, "m%s: %s\n", settings.username, str);
-			send(server_socket, msg, length, 0);
-			free(msg);
-		}
-	}
-}
-
-void SendKismetMessage(char *str) {
-	if (str) {
-		if (*str == 1 && str[1] == 0) {
-			DWORD l = ReadInt(process, (void *)level);
-			if (l) {
-				printf("sending level: 0x%x\n", l);
-				char *msg = (char *)malloc(0xFF);
-				int length = sprintf(msg, "l%d\n", l);
-				send(server_socket, msg, length, 0);
-				free(msg);
+				return;
 			}
-		} else {
-			printf("sending kismet msg: %s\n", str);
-			char *msg = (char *)malloc(strlen(str) + 3);
-			int length = sprintf(msg, "k%s\n", str);
-			send(server_socket, msg, length, 0);
-			free(msg);
+			case 'm': {
+				printf(" msg");
+				char *msg = (char *)malloc(strlen(settings.username) + strlen(str + 1) + 5);
+				int length = sprintf(msg, "m%s: %s\n", settings.username, str + 1);
+				VirtualFree(str, 0, MEM_RELEASE);
+				str = msg;
+				break;
+			}
+			case 'b': {
+				printf(" broadcast");
+				std::string repl(str + 1);
+				repl = std::regex_replace(repl, std::regex("\\{me\\}"), settings.username);
+				repl.insert(0, "m");
+				VirtualFree(str, 0, MEM_RELEASE);
+				str = _strdup(repl.c_str());
+				break;
+			}
 		}
+
+		printf(": %s\n", str);
+		send(server_socket, str, strlen(str), 0);
 
 		VirtualFree(str, 0, MEM_RELEASE);
 	}
