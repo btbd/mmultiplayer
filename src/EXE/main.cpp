@@ -520,6 +520,7 @@ void SendServer(char *str) {
 				std::string repl(str + 1);
 				repl = std::regex_replace(repl, std::regex("\\{me\\}"), settings.username);
 				repl.insert(0, "m");
+				repl.append("\r\n");
 				VirtualFree(str, 0, MEM_RELEASE);
 				str = _strdup(repl.c_str());
 				break;
