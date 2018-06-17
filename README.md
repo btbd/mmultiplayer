@@ -44,7 +44,7 @@ Putting a `/` as the first character in your message will execute your message a
 - `/rec begin` begins recording with the current character and name.
 - `/rec end` stops recording.
 - `/rec list` lists the current recordings in the chat (the leading number is the recording index).
-- `/rec play <index>` plays the recording at `<index>`. Use `/rec play all` to play all reocrdings.
+- `/rec play <index>` plays the recording at `<index>`. Use `/rec play all` to play all recordings.
 - `/rec pause <index>` pauses the playing recording at `<index>`. Use `/rec pause all` to pause all playing recordings.
 - `/rec unpause <index>` unpauses the playing recording at `<index>`. Use `/rec unpause all` to unpause all recordings.
 - `/rec delete <index>` deletes the recording at `<index>`. Use `/rec delete all` to delete all recordings.
@@ -108,7 +108,7 @@ The mod should inform you if an error occurs that prevents it from working prope
 - <i>Chat screen doesn't show</i>:
 	- `MMultiplayer.exe` and Mirror's Edge are running at different permissions. They need to be at the same permission level to communicate properly.
 	- Keybind is not properly set.
-- <i>Chat screen shows but unable to send message</i>
+- <i>Chat screen shows but unable to send message</i>:
 	- `MMultiplayer.exe` and Mirror's Edge are running at different permissions. They need to be at the same permission level to communicate properly.
 	- Network connection is disabled.
 	
@@ -125,14 +125,14 @@ For example, `mpsend killbots` kills bots for the other clients, and `mpsend ce 
 When the current user becomes host and a person joins/leaves the level, the console event `mphost` is caused to that client. All host migration is handled, so `mphost` should be treated as a message to broadcast data to the other clients. Only one user will be host on the current level and room.
 
 ### Events
-`mphost` - Called when the current user receives host
+`mphost` - Called when the current user receives host.
 
-`mpjoin` - Called when a user joins the current room and level
+`mpjoin` - Called when a user joins the current room and level.
 
-`mpleave` - Called when a user leaves the current room and level
+`mpleave` - Called when a user leaves the current room and level.
 
 ### Commands
-`echo <msg>` - Echoes `<msg>` in the chat locally
+`echo <msg>` - Echoes `<msg>` in the chat locally.
 
 `broadcast <msg>` - Broadcasts `<msg>` to everyone in the current room. Use `{me}` for the current name of the user.
 
