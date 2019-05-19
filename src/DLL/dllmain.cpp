@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-#define DEBUG
+// #define DEBUG
 #ifndef DEBUG
 #define printf //
 #endif
@@ -72,7 +72,6 @@ int __fastcall UpdateActorHook(int this_, void *idle_, int arg) {
 
 		for (int i = 0; i < sizeof(players) / sizeof(players[0]); ++i) {
 			if (!players[i].base && *x == -237887 - i * 10 && *y == 107302 && *z == 192292) {
-				printf("found player\n");
 				players[i].base = this_;
 			}
 
