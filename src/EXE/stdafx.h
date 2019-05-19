@@ -56,7 +56,9 @@ typedef struct {
 
 #define SERVER_PORT 2783
 #define CLIENT_PORT 3659
-#define VERSION "1.0.4"
+#define VERSION "1.0.6"
+
+static wchar_t *CHARACTERS[] = { L"Faith", L"Kate", L"Celeste", L"Assassin", L"Jacknife", L"Miller", L"Kreeg", L"Pursuit Cop", L"Ghost" };
 
 enum {
 	CHARACTER_FAITH = 0,
@@ -85,7 +87,9 @@ bool IsGameWindow(HWND hWnd);
 void SendServer(char *str);
 void WindowThread();
 void SaveSettings(SETTINGS *settings, bool startup);
+void ExecuteCommand(char *command);
 bool CopyMaps(DWORD pid);
+void SetIndex();
 void LeaveRoom();
 bool TestUDP();
 DWORD GetFileSize(char *path);

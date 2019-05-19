@@ -1,6 +1,9 @@
 #include "stdafx.h"
 
 // #define DEBUG
+#ifndef DEBUG
+#define printf //
+#endif
 
 char index = 0;
 SOCKET server_socket, client_socket;
@@ -11,9 +14,9 @@ SETTINGS settings = { 0 };
 DWORD last_ping = 0;
 
 HANDLE process = 0;
-DWORD base_path = 0;
-DWORD players = 0;
-DWORD level = 0;
+DWORD  base_path = 0;
+DWORD  players = 0;
+DWORD  level = 0;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
 	CreateMutexA(0, FALSE, "Local\\MMultiplayer.exe");
@@ -57,6 +60,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		return 1;
 	}
 
+	int enable = 1;
+	if (setsockopt(client_socket, SOL_SOCKET, SO_REUSEADDR, (char *)&enable, sizeof(int)) < 0) {
+		printf("setsockopt(SO_REUSEADDR) failed");
+		return 1;
+	}
+
 	self.sin_family = AF_INET;
 	self.sin_addr.s_addr = htonl(INADDR_ANY);
 	self.sin_port = htons(CLIENT_PORT);
@@ -82,16 +91,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	}
 
 	server.sin_family = AF_INET;
+	server.sin_port = htons(SERVER_PORT);
 	server_addr = server;
 	server_addr.sin_port = htons(CLIENT_PORT);
-	server.sin_port = htons(SERVER_PORT);
-
-	if (!TestUDP()) {
-		char msg[0xFF] = { 0 };
-		sprintf(msg, "Check your network connection and make sure that port %d (UDP) is open.", CLIENT_PORT);
-		MessageBoxA(0, msg, "Error", 0);
-		return 1;
-	}
 
 	if ((server_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
 		printf("unable to create a server socket\n");
@@ -100,7 +102,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	if (connect(server_socket, (SOCKADDR *)&server, sizeof(server)) == SOCKET_ERROR) {
 		MessageBoxA(0, "Unable to connect to the server", "Error", MB_ICONWARNING);
-		printf("unable to connect\n");
+		printf("unable to connect to server\n");
+		return 1;
+	}
+
+	if (connect(client_socket, (SOCKADDR *)&server_addr, sizeof(server_addr)) == SOCKET_ERROR) {
+		MessageBoxA(0, "UDP punch failed", "Error", MB_ICONWARNING);
+		printf("UDP punch failed\n");
+		return 1;
+	}
+
+	if (!TestUDP()) {
+		char msg[0xFF] = { 0 };
+		sprintf(msg, "Check your network connection and make sure that port %d (UDP) is open.", CLIENT_PORT);
+		MessageBoxA(0, msg, "Error", 0);
 		return 1;
 	}
 
@@ -134,6 +149,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			closesocket(server_socket);
 			server_socket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 			connect(server_socket, (SOCKADDR *)&server, sizeof(server));
+			connect(client_socket, (SOCKADDR *)&server_addr, sizeof(server_addr));
 			last_ping = timeGetTime();
 
 			printf("reconnected\n");
@@ -211,6 +227,8 @@ void ParseMessage(char *buffer) {
 			++buffer;
 			sscanf(buffer, "%hhu", &index);
 			printf("index: %d\n", index);
+
+			SetIndex();
 		} else if (*buffer == 'm') {
 			++buffer;
 			printf("chat msg: %s\n", buffer);
@@ -226,13 +244,7 @@ void ParseMessage(char *buffer) {
 			++buffer;
 			printf("kismet message: %s\n", buffer);
 
-			if (process) {
-				DWORD length = strlen(buffer) + 1;
-				LPVOID msg = VirtualAllocEx(process, NULL, length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-				WriteBuffer(process, msg, buffer, length);
-				WaitForSingleObject(CallFunction("EXPORT_ExecuteCommand", msg), INFINITE);
-				VirtualFreeEx(process, msg, 0, MEM_RELEASE);
-			}
+			ExecuteCommand(buffer);
 		} else if (*buffer == 'p') {
 			last_ping = timeGetTime();
 		}
@@ -267,7 +279,9 @@ void ProcessListener() {
 					LPVOID arg = (LPVOID)VirtualAllocEx(process, NULL, strlen(path) + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 					WriteProcessMemory(process, arg, path, strlen(path) + 1, NULL);
 
-					WaitForSingleObject(CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)loadLibAddr, arg, 0, 0), INFINITE);
+					HANDLE thread = CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)loadLibAddr, arg, 0, 0);
+					WaitForSingleObject(thread, INFINITE);
+					CloseHandle(thread);
 
 					VirtualFreeEx(process, arg, 0, MEM_RELEASE);
 				}
@@ -291,6 +305,9 @@ void ProcessListener() {
 
 				WriteInt(process, base, (int)SendServer);
 				WaitForSingleObject(CallFunction("EXPORT_SetSendServer", base), INFINITE);
+
+				WriteInt(process, base, index);
+				WaitForSingleObject(CallFunction("EXPORT_SetIndex", base), INFINITE);
 
 				VirtualFreeEx(process, base, 0, MEM_RELEASE);
 			} else {
@@ -327,10 +344,6 @@ void Listener() {
 			}
 
 			int character = packet.index / ACTORS_PER_CHARACTER;
-			if (character == CHARACTER_KATE || character == CHARACTER_MILLER || character == CHARACTER_KREEG) {
-				packet.position[2] -= 90;
-				packet.position[3] += 90;
-			}
 			WriteBuffer(process, (void *)(player.base + 0xE8), (char *)packet.position, sizeof(float) * 3);
 			if (fabs(packet.position[3]) > 750) {
 				packet.position[3] = 110;
@@ -357,7 +370,7 @@ void Sender() {
 	PACKET packet = { 0 };
 	DWORD player_base, player_bones;
 
-	char bones[BONES_SIZE];
+	char bones[BONES_SIZE] = { 0 };
 
 	for (;;) {
 		if (process && !settings.spectator) {
@@ -390,13 +403,32 @@ void Sender() {
 
 			sendto(client_socket, (char *)&packet, sizeof(PACKET), 0, (struct sockaddr *)&server_addr, sizeof(server_addr));
 			/* for (int i = 0; i < clients_length; ++i) {
-				Send(clients[i], (char *)&packet, sizeof(PACKET));
+			Send(clients[i], (char *)&packet, sizeof(PACKET));
 			} */
 		}
 
 	next:
 		Sleep(8);
 	}
+}
+
+void ExecuteCommand(char *command) {
+	printf("executing: %s\n", command);
+
+	if (process) {
+		DWORD length = strlen(command) + 1;
+		LPVOID msg = VirtualAllocEx(process, NULL, length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+		WriteBuffer(process, msg, command, length);
+		WaitForSingleObject(CallFunction("EXPORT_ExecuteCommand", msg), INFINITE);
+		VirtualFreeEx(process, msg, 0, MEM_RELEASE);
+	}
+}
+
+void SetIndex() {
+	LPVOID base = VirtualAllocEx(process, NULL, sizeof(DWORD), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	WriteInt(process, base, index);
+	WaitForSingleObject(CallFunction("EXPORT_SetIndex", base), INFINITE);
+	VirtualFreeEx(process, base, 0, MEM_RELEASE);
 }
 
 bool CopyMaps(DWORD pid) {
@@ -479,7 +511,7 @@ void Send(char *ip, char *buffer, int size) {
 void SendServer(char *str) {
 	if (str) {
 		printf("sending");
-			
+
 		switch (*str) {
 			case 'l':
 				printf(" level");
@@ -576,7 +608,7 @@ DWORD GetFileSize(char *path) {
 }
 
 void SaveSettings(SETTINGS *s, bool startup) {
-	char buffer[0xFF];
+	char buffer[0xFF] = { 0 };
 
 	if (!startup) {
 		if (s->room != settings.room) {
@@ -606,6 +638,14 @@ void SaveSettings(SETTINGS *s, bool startup) {
 	}
 
 	memcpy(&settings, s, sizeof(SETTINGS));
+
+	sprintf(buffer, "set mpname strvalue %s\n", settings.username);
+	ExecuteCommand(buffer);
+
+	char character[0xFF] = { 0 };
+	WCharToChar(character, CHARACTERS[s->character]);
+	sprintf(buffer, "set mpchar strvalue %s\n", character);
+	ExecuteCommand(buffer);
 
 	char path[0xFF];
 	GetTempPathA(0xFF, path);

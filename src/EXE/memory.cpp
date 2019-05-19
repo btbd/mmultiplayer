@@ -1269,7 +1269,7 @@ void UnTrampolineHook(void *src, void **gate) {
 
 	Memcpy(src, *gate, size);
 
-	VirtualFree(*gate, 0, MEM_RELEASE | MEM_DECOMMIT);
+	VirtualFree(*gate, 0, MEM_RELEASE);
 	*gate = src;
 }
 
@@ -1296,7 +1296,7 @@ MODULEENTRY32 InjectDLL(int process_id, wchar_t *DLL_path) {
 
 	WaitForSingleObject(CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryW"), arg, 0, 0), INFINITE);
 
-	VirtualFreeEx(process, arg, NULL, MEM_RELEASE | MEM_DECOMMIT);
+	VirtualFreeEx(process, arg, NULL, MEM_RELEASE);
 
 	PathStripPath(path);
 

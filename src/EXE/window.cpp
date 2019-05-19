@@ -72,15 +72,9 @@ INT_PTR CALLBACK DlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam) 
 			}
 
 			HWND model = GetDlgItem(hDlg, IDC_MODEL);
-			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Faith");
-			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Kate");
-			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Celeste");
-			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Assassin");
-			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Jacknife");
-			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Miller");
-			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Kreeg");
-			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Pursuit Cop");
-			SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)L"Ghost");
+			for (int i = 0; i < sizeof(CHARACTERS) / sizeof(CHARACTERS[0]); ++i) {
+				SendMessage(model, (UINT)CB_ADDSTRING, (WPARAM)0, (LPARAM)CHARACTERS[i]);
+			}
 
 			SendMessage(GetDlgItem(hDlg, IDC_MODEL), CB_SETCURSEL, (WPARAM)s.character, (LPARAM)0);
 

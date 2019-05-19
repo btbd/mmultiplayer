@@ -592,7 +592,7 @@ unsigned int Disassemble(unsigned char *bytes, unsigned int max, int offset, cha
 		{ 0, 0, "sahf", 0 }, // 9E
 		{ 0, 0, "lahf", 0 }, // 9F
 		{ 0, 0, "mov al,ds:", 1, IMM8 }, // A0
-		{ 0, 0, "mov eax,ds:", 1, IMM8 }, // A1
+		{ 0, 0, "mov eax,ds:", 1, IMM32 }, // A1
 		{ 0, 0, "mov ds:", 2, IMM8, AL }, // A2
 		{ 0, 0, "mov ds:", 2, IMM32, EAX }, // A3
 		{ 0, 0, "movs BYTE PTR es:[edi],BYTE PTR ds:[esi]", 0 }, // A4
@@ -1125,7 +1125,7 @@ OUTPUT:
 				strcat(output, "xmm0");
 				break;
 			case BND0:
-				strcat(output, "bdn0");
+				strcat(output, "bnd0");
 				break;
 			case BAD:
 				bytes++;
@@ -1269,7 +1269,7 @@ void UnTrampolineHook(void *src, void **gate) {
 
 	Memcpy(src, *gate, size);
 
-	VirtualFree(*gate, 0, MEM_RELEASE | MEM_DECOMMIT);
+	VirtualFree(*gate, 0, MEM_RELEASE);
 	*gate = src;
 }
 
@@ -1296,7 +1296,7 @@ MODULEENTRY32 InjectDLL(int process_id, wchar_t *DLL_path) {
 
 	WaitForSingleObject(CreateRemoteThread(process, 0, 0, (LPTHREAD_START_ROUTINE)GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryW"), arg, 0, 0), INFINITE);
 
-	VirtualFreeEx(process, arg, NULL, MEM_RELEASE | MEM_DECOMMIT);
+	VirtualFreeEx(process, arg, NULL, MEM_RELEASE);
 
 	PathStripPath(path);
 
