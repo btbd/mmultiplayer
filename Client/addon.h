@@ -3,5 +3,5 @@
 class Addon {
 	public:
 		virtual bool Initialize() = 0;
-		virtual string GetName() = 0;
+		virtual std::string GetName() = 0;
 };

@@ -3,5 +3,5 @@
 class Dolly : public Addon {
 	public:
 		bool Initialize();
-		string GetName();
+		std::string GetName();
 };

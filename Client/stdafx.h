@@ -1,7 +1,5 @@
 #pragma once
 
-using namespace std;
-
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <stdio.h>

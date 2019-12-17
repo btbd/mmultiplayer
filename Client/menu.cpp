@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
 bool show = false;
-vector<MenuTab> tabs;
+std::vector<MenuTab> tabs;
 
 void RenderMenu(IDirect3DDevice9 *device) {
 	if (show) {
@@ -127,7 +127,7 @@ void PlayerTab() {
 namespace Menu {
 	void AddTab(const char *name, MenuTabCallback callback) {
 		tabs.push_back({
-			new string(name),
+			new std::string(name),
 			callback,
 		});
 	}

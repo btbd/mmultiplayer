@@ -1,8 +1,8 @@
 #include "stdafx.h"
 
-namespace pattern {
+namespace Pattern {
 	bool CheckMask(void *base, const char *pattern, const char *mask) {
-		for (char *b = (char *)base; *mask; ++b, ++pattern, ++mask) {
+		for (auto b = reinterpret_cast<char *>(base); *mask; ++b, ++pattern, ++mask) {
 			if ('x' == *mask && *b != *pattern) {
 				return false;
 			}
@@ -23,7 +23,7 @@ namespace pattern {
 
 		MODULEINFO info = { 0 };
 		if (GetModuleInformation(GetCurrentProcess(), mod, &info, sizeof(info))) {
-			return FindPattern((void *)mod, info.SizeOfImage, pattern, mask);
+			return FindPattern(mod, info.SizeOfImage, pattern, mask);
 		}
 
 		return 0;
@@ -33,7 +33,7 @@ namespace pattern {
 		size -= strlen(mask);
 
 		for (int i = 0; i <= size; ++i) {
-			void *addr = (void *)((char *)base + i);
+			auto addr = reinterpret_cast<char *>(base) + i;
 			if (CheckMask(addr, pattern, mask)) {
 				return addr;
 			}

@@ -2,9 +2,9 @@
 
 BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
 	AllocConsole();
-	freopen("CONIN$", "r", stdin);
-	freopen("CONOUT$", "w", stdout);
-	freopen("CONOUT$", "w", stderr);
+	(void)freopen("CONIN$", "r", stdin);
+	(void)freopen("CONOUT$", "w", stdout);
+	(void)freopen("CONOUT$", "w", stderr);
 
 	Addon *addons[] = { new Dolly() };
 	
@@ -20,7 +20,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
 				break;
 			}
 
-			for (auto addon : addons) {
+			for (auto &addon : addons) {
 				if (!addon->Initialize()) {
 					printf("fatal: %s failed to initialize\n", addon->GetName().c_str());
 					break;

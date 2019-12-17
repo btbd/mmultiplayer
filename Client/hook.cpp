@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-namespace hook {
+namespace Hook {
 	byte GetInstructionLength(byte table[], byte *instruction) {
 		byte i = table[*instruction++];
 		return i < 0x10 ? i : GetInstructionLength(INSTRUCTION_TABLES[i - 0x10], instruction);
@@ -14,11 +14,11 @@ namespace hook {
 			return false;
 		}
 
-		*(int *)&jmp[1] = (int)dest - ((int)src + JMP_SIZE);
+		*reinterpret_cast<int *>(&jmp[1]) = reinterpret_cast<int>(dest) - (reinterpret_cast<int>(src) + JMP_SIZE);
 
 		memcpy(src, jmp, JMP_SIZE);
-		for (byte i = 0; i < nops; ++i) {
-			*((byte *)src + JMP_SIZE + i) = 0x90;
+		for (auto i = 0; i < nops; ++i) {
+			*(reinterpret_cast<byte *>(src) + JMP_SIZE + i) = 0x90;
 		}
 
 		VirtualProtect(src, JMP_SIZE + nops, protection, &protection);
@@ -30,7 +30,7 @@ namespace hook {
 			return false;
 		}
 
-		if (*(byte *)src == 0xE9) {
+		if (*reinterpret_cast<byte *>(src) == 0xE9) {
 			void *copy = VirtualAlloc(0, JMP_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 			if (!copy) {
 				return false;
@@ -49,7 +49,7 @@ namespace hook {
 			}
 		} else {
 			byte length = 0;
-			for (byte *inst = (byte *)src; length < JMP_SIZE; ) {
+			for (auto inst = reinterpret_cast<byte *>(src); length < JMP_SIZE; ) {
 				byte l = GetInstructionLength(INSTRUCTION_TABLE, inst);
 				if (!l) {
 					return false;
@@ -59,13 +59,13 @@ namespace hook {
 				length += l;
 			}
 
-			void *copy = VirtualAlloc(0, length + JMP_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+			auto copy = reinterpret_cast<byte *>(VirtualAlloc(0, length + JMP_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
 			if (!copy) {
 				return false;
 			}
 
 			memcpy(copy, src, length);
-			if (!SetJMP((byte *)src + length, (byte *)copy + length, 0)) {
+			if (!SetJMP(reinterpret_cast<byte *>(src) + length, copy + length, 0)) {
 				VirtualFree(copy, 0, MEM_RELEASE);
 				return false;
 			}

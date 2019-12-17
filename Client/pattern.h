@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-namespace pattern {
+namespace Pattern {
 	bool CheckMask(void *base, const char *pattern, const char *mask);
 	void *FindPattern(const char *pattern, const char *mask);
 	void *FindPattern(const char *module, const char *pattern, const char *mask);

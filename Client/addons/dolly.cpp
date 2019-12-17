@@ -10,6 +10,6 @@ bool Dolly::Initialize() {
 	return true;
 }
 
-string Dolly::GetName() {
+std::string Dolly::GetName() {
 	return "Dolly";
 }

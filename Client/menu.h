@@ -3,7 +3,7 @@
 typedef void(*MenuTabCallback)();
 
 typedef struct {
-	string *Name;
+	std::string *Name;
 	MenuTabCallback Callback;
 } MenuTab;
 

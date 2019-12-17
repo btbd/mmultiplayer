@@ -3,7 +3,7 @@
 /*** Hook originals and callbacks ***/
 // D3D9 and Window
 struct {
-	vector<RenderSceneCallback> Callbacks;
+	std::vector<RenderSceneCallback> Callbacks;
 	HRESULT(WINAPI *Original)(IDirect3DDevice9 *) = 0;
 } renderScene;
 
@@ -14,8 +14,8 @@ struct {
 struct {
 	bool BlockInput = false;
 	byte KeysDown[0x100] = { 0 };
-	vector<InputCallback> InputCallbacks;
-	vector<InputCallback> SuperInputCallbacks;
+	std::vector<InputCallback> InputCallbacks;
+	std::vector<InputCallback> SuperInputCallbacks;
 
 	WNDPROC WndProc;
 	BOOL(WINAPI *PeekMessage)(LPMSG, HWND, UINT, UINT, UINT);
@@ -23,22 +23,22 @@ struct {
 
 // Engine
 struct {
-	vector<wstring *> queue;
-	mutex mutex;
+	std::vector<std::wstring *> queue;
+	std::mutex mutex;
 } commands;
 
 struct {
-	vector<ProcessEventCallback> Callbacks;
+	std::vector<ProcessEventCallback> Callbacks;
 	int(__thiscall *Original)(Classes::UObject *, class Classes::UFunction *, void *, void *) = 0;
 } processEvent;
 
 struct {
-	vector<ActorTickCallback> Callbacks;
+	std::vector<ActorTickCallback> Callbacks;
 	void *(__thiscall *Original)(Classes::AActor *, void *) = 0;
 } actorTick;
 
 struct {
-	vector<BonesTickCallback> Callbacks;
+	std::vector<BonesTickCallback> Callbacks;
 	void *(__thiscall *Original)(Classes::TArray<class Classes::USkeletalMeshSocket *> *, void *) = 0;
 } bonesTick;
 
@@ -181,7 +181,7 @@ void *__fastcall ActorTickHook(Classes::AActor *actor, void *idle, void *arg) {
 		if (console) {
 			commands.mutex.lock();
 
-			for (auto command : commands.queue) {
+			for (auto &command : commands.queue) {
 				console->ConsoleCommand(command->c_str());
 				delete command;
 			}
@@ -252,7 +252,7 @@ namespace Engine {
 
 	void ExecuteCommand(Classes::FString command) {
 		commands.mutex.lock();
-		commands.queue.push_back(new wstring(command.c_str()));
+		commands.queue.push_back(new std::wstring(command.c_str()));
 		commands.mutex.unlock();
 	}
 
@@ -367,87 +367,87 @@ namespace Engine {
 
 		/*** SDK ***/
 		// GNames
-		if (!(ptr = pattern::FindPattern("\x8B\x0D\x00\x00\x00\x00\x8B\x84\x24\x00\x00\x00\x00\x8B\x04\x81", "xx????xxx????xxx"))) {
+		if (!(ptr = Pattern::FindPattern("\x8B\x0D\x00\x00\x00\x00\x8B\x84\x24\x00\x00\x00\x00\x8B\x04\x81", "xx????xxx????xxx"))) {
 			MessageBoxA(0, "Failed to find GNames", "Failure", MB_ICONERROR);
 			return false;
 		}
 
-		Classes::FName::GNames = (Classes::TArray<Classes::FNameEntry *> *)*(void **)((byte *)ptr + 2);
+		Classes::FName::GNames = reinterpret_cast<Classes::TArray<Classes::FNameEntry *> *>(*reinterpret_cast<void **>(reinterpret_cast<byte *>(ptr) + 2));
 
 		// GObjects
-		if (!(ptr = pattern::FindPattern("\x8B\x15\x00\x00\x00\x00\x8B\x0C\xB2\x8D\x44\x24\x30", "xx????xxxxxxx"))) {
+		if (!(ptr = Pattern::FindPattern("\x8B\x15\x00\x00\x00\x00\x8B\x0C\xB2\x8D\x44\x24\x30", "xx????xxxxxxx"))) {
 			MessageBoxA(0, "Failed to find GObjects", "Failure", MB_ICONERROR);
 			return false;
 		}
 
-		Classes::UObject::GObjects = (Classes::TArray<Classes::UObject *> *)*(void **)((byte *)ptr + 2);
+		Classes::UObject::GObjects = reinterpret_cast<Classes::TArray<Classes::UObject *> *>(*reinterpret_cast<void **>(reinterpret_cast<byte *>(ptr) + 2));
 
 		/*** D3D9 Hooks ***/
 		// EndScene
-		if (!(ptr = pattern::FindPattern("d3d9.dll", "\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx"))) {
+		if (!(ptr = Pattern::FindPattern("d3d9.dll", "\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx"))) {
 			MessageBoxA(0, "Failed to find D3D9 exports", "Failure", MB_ICONERROR);
 			return false;
 		}
 
 		ptr = *(void **)((byte *)ptr + 2);	
-		if (!hook::TrampolineHook((void *)EndSceneHook, ((void **)ptr)[D3D9_EXPORT_ENDSCENE], (void **)&renderScene.Original)) {
+		if (!Hook::TrampolineHook(EndSceneHook, ((void **)ptr)[D3D9_EXPORT_ENDSCENE], reinterpret_cast<void **>(&renderScene.Original))) {
 			MessageBoxA(0, "Failed to hook D3D9 EndScene", "Failure", MB_ICONERROR);
 			return false;
 		}
 
 		// Reset
-		if (!hook::TrampolineHook((void *)ResetHook, ((void **)ptr)[D3D9_EXPORT_RESET], (void **)&resetScene.Original)) {
+		if (!Hook::TrampolineHook(ResetHook, ((void **)ptr)[D3D9_EXPORT_RESET], reinterpret_cast<void **>(&resetScene.Original))) {
 			MessageBoxA(0, "Failed to hook D3D9 Reset", "Failure", MB_ICONERROR);
 			return false;
 		}
 
 		// PeekMessage
-		if (!hook::TrampolineHook((void *)PeekMessageHook, PeekMessageW, (void **)&window.PeekMessage)) {
+		if (!Hook::TrampolineHook(PeekMessageHook, PeekMessageW, reinterpret_cast<void **>(&window.PeekMessage))) {
 			MessageBoxA(0, "Failed to hook D3D9 Reset", "Failure", MB_ICONERROR);
 			return false;
 		}
 
 		/*** Engine Hooks ***/
 		// ProcessEvent
-		if (!(ptr = pattern::FindPattern("\x56\x8B\xF1\x8B\x0D\x00\x00\x00\x00\x85\xC9\x74\x09", "xxxxx????xxxx"))) {
+		if (!(ptr = Pattern::FindPattern("\x56\x8B\xF1\x8B\x0D\x00\x00\x00\x00\x85\xC9\x74\x09", "xxxxx????xxxx"))) {
 			MessageBoxA(0, "Failed to find ProcessEvent", "Failure", MB_ICONERROR);
 			return false;
 		}
 
-		if (!hook::TrampolineHook((void *)ProcessEventHook, ptr, (void **)&processEvent.Original)) {
+		if (!Hook::TrampolineHook(ProcessEventHook, ptr, reinterpret_cast<void **>(&processEvent.Original))) {
 			MessageBoxA(0, "Failed to hook ProcessEvent", "Failure", MB_ICONERROR);
 			return false;
 		}
 
 		// ActorTick
-		if (!(ptr = pattern::FindPattern("\x55\x8B\xEC\x83\xE4\xF0\x83\xEC\x38\x56\x57\x8B\x81", "xxxxxxxxxxxxx"))) {
+		if (!(ptr = Pattern::FindPattern("\x55\x8B\xEC\x83\xE4\xF0\x83\xEC\x38\x56\x57\x8B\x81", "xxxxxxxxxxxxx"))) {
 			MessageBoxA(0, "Failed to find ActorTick", "Failure", MB_ICONERROR);
 			return false;
 		}
 
-		if (!hook::TrampolineHook((void *)ActorTickHook, ptr, (void **)&actorTick.Original)) {
+		if (!Hook::TrampolineHook(ActorTickHook, ptr, reinterpret_cast<void **>(&actorTick.Original))) {
 			MessageBoxA(0, "Failed to hook ActorTick", "Failure", MB_ICONERROR);
 			return false;
 		}
 
 		// BonesTick
-		if (!(ptr = pattern::FindPattern("\xE8\x00\x00\x00\x00\x8B\x74\x24\x14\x8D\x7B\x68", "x????xxxxxxx"))) {
+		if (!(ptr = Pattern::FindPattern("\xE8\x00\x00\x00\x00\x8B\x74\x24\x14\x8D\x7B\x68", "x????xxxxxxx"))) {
 			MessageBoxA(0, "Failed to find BonesTick", "Failure", MB_ICONERROR);
 			return false;
 		}
 
-		if (!hook::TrampolineHook((void *)BonesTickHook, RELATIVE_ADDR(ptr, JMP_SIZE), (void **)&bonesTick.Original)) {
+		if (!Hook::TrampolineHook(BonesTickHook, RELATIVE_ADDR(ptr, JMP_SIZE), reinterpret_cast<void **>(&bonesTick.Original))) {
 			MessageBoxA(0, "Failed to hook BonesTick", "Failure", MB_ICONERROR);
 			return false;
 		}
 
 		// ProjectionTick
-		if (!(ptr = pattern::FindPattern("\x83\xEC\x3C\xD9\x44\x24\x44", "xxxxxxx"))) {
+		if (!(ptr = Pattern::FindPattern("\x83\xEC\x3C\xD9\x44\x24\x44", "xxxxxxx"))) {
 			MessageBoxA(0, "Failed to find ProjectionTick", "Failure", MB_ICONERROR);
 			return false;
 		}
 
-		if (!hook::TrampolineHook((void *)ProjectionTick, ptr, (void **)&projectionTick.Original)) {
+		if (!Hook::TrampolineHook(ProjectionTick, ptr, reinterpret_cast<void **>(&projectionTick.Original))) {
 			MessageBoxA(0, "Failed to hook ProjectionTick", "Failure", MB_ICONERROR);
 			return false;
 		}
