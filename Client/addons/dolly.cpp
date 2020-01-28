@@ -1,15 +1,15 @@
 #include "../stdafx.h"
 
-auto recording = false, playing = false, cameraView = false;
+static auto recording = false, playing = false, cameraView = false;
 
-int duration = 0, frame = 0;
-std::vector<Dolly::Marker> markers;
+static int duration = 0, frame = 0;
+static std::vector<Dolly::Marker> markers;
 
-auto character = Engine::Character::Faith;
-Dolly::Recording currentRecording;
-std::vector<Dolly::Recording> recordings;
+static auto character = Engine::Character::Faith;
+static Dolly::Recording currentRecording;
+static std::vector<Dolly::Recording> recordings;
 
-Classes::FRotator VectorToRotator(Classes::FVector vector) {
+static Classes::FRotator VectorToRotator(Classes::FVector vector) {
 	auto convert = [](float r) {
 		return static_cast<unsigned int>((fmodf(r, 360.0f) / 360.0f) * 0x10000);
 	};
@@ -17,7 +17,7 @@ Classes::FRotator VectorToRotator(Classes::FVector vector) {
 	return Classes::FRotator{ convert(vector.X), convert(vector.Y), convert(vector.Z) };
 }
 
-Classes::FVector RotatorToVector(Classes::FRotator rotator) {
+static Classes::FVector RotatorToVector(Classes::FRotator rotator) {
 	auto convert = [](int r) {
 		return (static_cast<float>(r % 0x10000) / static_cast<float>(0x10000)) * 360.0f;
 	};
@@ -25,7 +25,7 @@ Classes::FVector RotatorToVector(Classes::FRotator rotator) {
 	return Classes::FVector{ convert(rotator.Pitch), convert(rotator.Yaw), convert(rotator.Roll) };
 }
 
-float Interpolate(float x0, float x1, float y0, float y1, float m0, float m1, float x) {
+static float Interpolate(float x0, float x1, float y0, float y1, float m0, float m1, float x) {
 	auto t = (x - x0) / (x1 - x0);
 	auto t2 = t * t;
 	auto t3 = t2 * t;
@@ -40,12 +40,12 @@ float Interpolate(float x0, float x1, float y0, float y1, float m0, float m1, fl
 	return (h00 * y0) + (h10 * domain * m0) + (h01 * y1) + (h11 * domain * m1);
 }
 
-inline float GetMarkerField(int index, int fieldOffset) {
+static inline float GetMarkerField(int index, int fieldOffset) {
 	return *reinterpret_cast<float *>(reinterpret_cast<byte *>(&markers[index]) + fieldOffset);
 }
 
 // Must have more than 1 marker
-float Slope(int index, int fieldOffset) {
+static float Slope(int index, int fieldOffset) {
 	if (index == 0) {
 		return (GetMarkerField(index + 1, fieldOffset) - GetMarkerField(index, fieldOffset)) / static_cast<float>(markers[index + 1].Frame - markers[index].Frame);
 	} else if (index == markers.size() - 1) {
@@ -57,7 +57,7 @@ float Slope(int index, int fieldOffset) {
 		(GetMarkerField(index, fieldOffset) - GetMarkerField(index - 1, fieldOffset)) / static_cast<float>(markers[index].Frame - markers[index - 1].Frame));
 }
 
-void FixTimeline() {
+static void FixTimeline() {
 	duration = 0;
 
 	for (auto &m : markers) {
@@ -103,7 +103,7 @@ void FixTimeline() {
 	}
 }
 
-void ShiftTimeline(int amount) {
+static void ShiftTimeline(int amount) {
 	frame += amount;
 
 	for (auto &m : markers) {
@@ -115,7 +115,7 @@ void ShiftTimeline(int amount) {
 	}
 }
 
-void FixPlayer() {
+static void FixPlayer() {
 	auto pawn = Engine::GetPlayerPawn();
 	if (!pawn) {
 		return;
@@ -141,7 +141,7 @@ void FixPlayer() {
 	}
 }
 
-void DollyTab() {
+static void DollyTab() {
 	if (playing) {
 		if (ImGui::Button("Stop##dolly")) {
 			playing = false;
@@ -301,7 +301,7 @@ void DollyTab() {
 			ImGui::SameLine();
 			if (ImGui::Button(("Delete" + label).c_str())) {
 				if (rec.Pawn) {
-					rec.Pawn->SetHidden(true);
+					Engine::Despawn(rec.Pawn);
 					rec.Pawn = nullptr;
 				}
 
@@ -314,7 +314,7 @@ void DollyTab() {
 	}
 }
 
-void OnTick(float) {
+static void OnTick(float) {
 	auto pawn = Engine::GetPlayerPawn();
 
 	if (pawn) {
@@ -384,32 +384,27 @@ void OnTick(float) {
 
 			currentRecording.Frames.push_back(f);
 		}
-
-		for (auto &r : recordings) {
-			if (r.Pawn) {
-				if (frame >= r.StartFrame && frame < r.StartFrame + static_cast<int>(r.Frames.size())) {
-					auto &f = r.Frames[frame - r.StartFrame];
-					r.Pawn->Location = f.Position;
-					r.Pawn->Rotation = f.Rotation;
-				} else {
-					r.Pawn->Location = { 0 };
-				}
-
-				r.Pawn->Mesh3p->bNeedsUpdateTransform = true;
-			}
-		}
 	}
 }
 
-void OnBonesTick(Classes::TArray<Classes::FBoneAtom> *bones) {
+static void OnBonesTick(Classes::TArray<Classes::FBoneAtom> *bones) {
 	for (auto &r : recordings) {
-		if (r.Pawn && &r.Pawn->Mesh3p->LocalAtoms == bones && frame >= r.StartFrame && frame < r.StartFrame + static_cast<int>(r.Frames.size())) {
-			Engine::TransformBones(r.Character, bones, r.Frames[frame - r.StartFrame].Bones);
+		if (r.Pawn && &r.Pawn->Mesh3p->LocalAtoms == bones) {
+			if (frame >= r.StartFrame && frame < r.StartFrame + static_cast<int>(r.Frames.size())) {
+				auto &f = r.Frames[frame - r.StartFrame];
+				r.Pawn->Location = f.Position;
+				r.Pawn->Rotation = f.Rotation;
+				Engine::TransformBones(r.Character, bones, r.Frames[frame - r.StartFrame].Bones);
+			} else {
+				r.Pawn->Location = { 0 };
+			}
+
+			r.Pawn->Mesh3p->bNeedsUpdateTransform = true;
 		}
 	}
 }
 
-void OnRender(IDirect3DDevice9 *device) {
+static void OnRender(IDirect3DDevice9 *device) {
 	if (!playing) {
 		auto window = ImGui::BeginRawScene("##dolly-backbuffer");
 

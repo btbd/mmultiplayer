@@ -24,6 +24,7 @@ namespace Engine {
 	Classes::ATdPlayerController *GetPlayerController(bool update = false);
 	Classes::ATdPlayerPawn *GetPlayerPawn(bool update = false);
 	void SpawnCharacter(Character character, Classes::ATdPlayerPawn *&spawned);
+	void Despawn(Classes::AActor *actor);
 	void TransformBones(Character character, Classes::TArray<Classes::FBoneAtom> *dest, Classes::FBoneAtom *src);
 
 	bool WorldToScreen(IDirect3DDevice9 *device, Classes::FVector &inOutLocation);

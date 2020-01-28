@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-auto show = false;
-std::vector<MenuTab> tabs;
+static auto show = false;
+static std::vector<MenuTab> tabs;
 
 void RenderMenu(IDirect3DDevice9 *device) {
 	if (show) {
@@ -38,12 +38,7 @@ void EngineTab() {
 	ImGui::InputText("##command", command, sizeof(command));
 	ImGui::SameLine();
 	if (ImGui::Button("Execute Comamnd") && command[0]) {
-		wchar_t wcommand[0xFFF] = { 0 };
-
-		auto len = strlen(command);
-		MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, command, len, wcommand, len);
-
-		Engine::ExecuteCommand(wcommand);
+		Engine::ExecuteCommand(std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().from_bytes(command).c_str());
 
 		command[0] = 0;
 	}

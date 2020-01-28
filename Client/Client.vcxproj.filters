@@ -240,14 +240,17 @@
     <ClInclude Include="addon.h">
       <Filter>Header Files\addons</Filter>
     </ClInclude>
-    <ClInclude Include="addons\dolly.h">
-      <Filter>Header Files\addons</Filter>
-    </ClInclude>
     <ClInclude Include="json.h">
       <Filter>Header Files\util</Filter>
     </ClInclude>
     <ClInclude Include="settings.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="addons\client.h">
+      <Filter>Header Files\addons</Filter>
+    </ClInclude>
+    <ClInclude Include="addons\dolly.h">
+      <Filter>Header Files\addons</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -335,11 +338,14 @@
     <ClCompile Include="menu.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="addons\dolly.cpp">
-      <Filter>Source Files\addons</Filter>
-    </ClCompile>
     <ClCompile Include="settings.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="addons\client.cpp">
+      <Filter>Source Files\addons</Filter>
+    </ClCompile>
+    <ClCompile Include="addons\dolly.cpp">
+      <Filter>Source Files\addons</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

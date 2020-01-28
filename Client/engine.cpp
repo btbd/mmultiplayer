@@ -2,16 +2,16 @@
 
 /*** Hook originals and callbacks ***/
 // D3D9 and Window
-struct {
+static struct {
 	std::vector<RenderSceneCallback> Callbacks;
 	HRESULT(WINAPI *Original)(IDirect3DDevice9 *) = nullptr;
 } renderScene;
 
-struct {
+static struct {
 	HRESULT(WINAPI *Original)(IDirect3DDevice9 *, D3DPRESENT_PARAMETERS *) = nullptr;
 } resetScene;
 
-struct {
+static struct {
 	bool BlockInput = false;
 	byte KeysDown[0x100] = { 0 };
 	std::vector<InputCallback> InputCallbacks;
@@ -22,43 +22,43 @@ struct {
 } window;
 
 // Engine
-struct {
+static struct {
 	std::vector<std::wstring> Queue;
 	std::mutex Mutex;
 } commands;
 
-struct {
+static struct {
 	std::vector<std::pair<Engine::Character, Classes::ATdPlayerPawn *&>> Queue;
 	std::mutex Mutex;
 } spawns;
 
-struct {
+static struct {
 	std::vector<ProcessEventCallback> Callbacks;
 	int(__thiscall *Original)(Classes::UObject *, class Classes::UFunction *, void *, void *) = nullptr;
 } processEvent;
 
-struct {
+static struct {
 	std::vector<LevelLoadCallback> PreCallbacks;
 	std::vector<LevelLoadCallback> PostCallbacks;
 	int(__thiscall *Original)(void *, void *, unsigned long long arg);
 } levelLoad;
 
-struct {
+static struct {
 	std::vector<ActorTickCallback> Callbacks;
 	void *(__thiscall *Original)(Classes::AActor *, void *) = nullptr;
 } actorTick;
 
-struct {
+static struct {
 	std::vector<BonesTickCallback> Callbacks;
 	void *(__thiscall *Original)(void *, void *, void *, void *, void *) = nullptr;
 } bonesTick;
 
-struct {
+static struct {
 	D3DXMATRIX *Matrix;
 	int *(__thiscall *Original)(Classes::FMatrix *, void *) = nullptr;
 } projectionTick;
 
-struct {
+static struct {
 	std::vector<TickCallback> Callbacks;
 	void(__thiscall *Original)(float *, int, float) = nullptr;
 } tick;
@@ -490,6 +490,14 @@ void Engine::SpawnCharacter(Character character, Classes::ATdPlayerPawn *&spawne
 	spawns.Mutex.lock();
 	spawns.Queue.push_back({ character, spawned });
 	spawns.Mutex.unlock();
+}
+
+void Engine::Despawn(Classes::AActor *actor) {
+	if (!actor) {
+		return;
+	}
+
+	actor->SetHidden(true);
 }
 
 void Engine::TransformBones(Character character, Classes::TArray<Classes::FBoneAtom> *destBones, Classes::FBoneAtom *src) {

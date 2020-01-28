@@ -9,7 +9,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
 		static_cast<VOID>(freopen("CONOUT$", "w", stdout));
 		static_cast<VOID>(freopen("CONOUT$", "w", stderr));
 
-		Addon *addons[] = { new Dolly() };
+		Addon *addons[] = { new Client(), new Dolly() };
 
 		if (!Engine::Initialize()) {
 			printf("fatal: failed to initialize engine\n");

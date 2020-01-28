@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-json settings;
+static json settings;
 
 std::string GetSettingsPath() {
 	char path[MAX_PATH];
