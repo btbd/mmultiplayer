@@ -243,6 +243,12 @@
     <ClInclude Include="addons\dolly.h">
       <Filter>Header Files\addons</Filter>
     </ClInclude>
+    <ClInclude Include="json.h">
+      <Filter>Header Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="settings.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -314,9 +320,6 @@
     <ClCompile Include="imgui\imgui.cpp">
       <Filter>Source Files\imgui</Filter>
     </ClCompile>
-    <ClCompile Include="imgui\imgui_demo.cpp">
-      <Filter>Source Files\imgui</Filter>
-    </ClCompile>
     <ClCompile Include="imgui\imgui_draw.cpp">
       <Filter>Source Files\imgui</Filter>
     </ClCompile>
@@ -334,6 +337,9 @@
     </ClCompile>
     <ClCompile Include="addons\dolly.cpp">
       <Filter>Source Files\addons</Filter>
+    </ClCompile>
+    <ClCompile Include="settings.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

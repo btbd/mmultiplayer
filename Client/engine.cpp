@@ -4,11 +4,11 @@
 // D3D9 and Window
 struct {
 	std::vector<RenderSceneCallback> Callbacks;
-	HRESULT(WINAPI *Original)(IDirect3DDevice9 *) = 0;
+	HRESULT(WINAPI *Original)(IDirect3DDevice9 *) = nullptr;
 } renderScene;
 
 struct {
-	HRESULT(WINAPI *Original)(IDirect3DDevice9 *, D3DPRESENT_PARAMETERS *) = 0;
+	HRESULT(WINAPI *Original)(IDirect3DDevice9 *, D3DPRESENT_PARAMETERS *) = nullptr;
 } resetScene;
 
 struct {
@@ -17,42 +17,58 @@ struct {
 	std::vector<InputCallback> InputCallbacks;
 	std::vector<InputCallback> SuperInputCallbacks;
 
-	WNDPROC WndProc;
-	BOOL(WINAPI *PeekMessage)(LPMSG, HWND, UINT, UINT, UINT);
+	WNDPROC WndProc = nullptr;
+	BOOL(WINAPI *PeekMessage)(LPMSG, HWND, UINT, UINT, UINT) = nullptr;
 } window;
 
 // Engine
 struct {
-	std::vector<std::wstring *> queue;
-	std::mutex mutex;
+	std::vector<std::wstring> Queue;
+	std::mutex Mutex;
 } commands;
 
 struct {
+	std::vector<std::pair<Engine::Character, Classes::ATdPlayerPawn *&>> Queue;
+	std::mutex Mutex;
+} spawns;
+
+struct {
 	std::vector<ProcessEventCallback> Callbacks;
-	int(__thiscall *Original)(Classes::UObject *, class Classes::UFunction *, void *, void *) = 0;
+	int(__thiscall *Original)(Classes::UObject *, class Classes::UFunction *, void *, void *) = nullptr;
 } processEvent;
 
 struct {
+	std::vector<LevelLoadCallback> PreCallbacks;
+	std::vector<LevelLoadCallback> PostCallbacks;
+	int(__thiscall *Original)(void *, void *, unsigned long long arg);
+} levelLoad;
+
+struct {
 	std::vector<ActorTickCallback> Callbacks;
-	void *(__thiscall *Original)(Classes::AActor *, void *) = 0;
+	void *(__thiscall *Original)(Classes::AActor *, void *) = nullptr;
 } actorTick;
 
 struct {
 	std::vector<BonesTickCallback> Callbacks;
-	void *(__thiscall *Original)(Classes::TArray<class Classes::USkeletalMeshSocket *> *, void *) = 0;
+	void *(__thiscall *Original)(void *, void *, void *, void *, void *) = nullptr;
 } bonesTick;
 
 struct {
 	D3DXMATRIX *Matrix;
-	int *(__thiscall *Original)(Classes::FMatrix *, void *) = 0;
+	int *(__thiscall *Original)(Classes::FMatrix *, void *) = nullptr;
 } projectionTick;
+
+struct {
+	std::vector<TickCallback> Callbacks;
+	void(__thiscall *Original)(float *, int, float) = nullptr;
+} tick;
 
 /*** Hook implementations ***/
 // D3D9
 HRESULT WINAPI EndSceneHook(IDirect3DDevice9 *device) {
 	static bool init = true;
 	if (init) {
-		D3DDEVICE_CREATION_PARAMETERS params = { 0 };
+		D3DDEVICE_CREATION_PARAMETERS params;
 		device->GetCreationParameters(&params);
 
 		ImGui::CreateContext();
@@ -165,7 +181,7 @@ BOOL WINAPI PeekMessageHook(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMs
 
 // Engine
 int __fastcall ProcessEventHook(Classes::UObject *object, void *idle, class Classes::UFunction *function, void *args, void *result) {
-	int sum = 0;
+	auto sum = 0;
 	for (auto callback : processEvent.Callbacks) {
 		sum += callback(object, function, args, result);
 	}
@@ -173,26 +189,23 @@ int __fastcall ProcessEventHook(Classes::UObject *object, void *idle, class Clas
 	return sum == 0 ? processEvent.Original(object, function, args, result) : 0;
 }
 
-void *__fastcall ActorTickHook(Classes::AActor *actor, void *idle, void *arg) {
-	// Commands must be executed inside the context of an engine thread
-	if (commands.queue.size() > 0) {
-		auto console = Engine::GetConsole();
+int __fastcall LevelLoadHook(void *this_, void *idle_, void **levelInfo, unsigned long long arg) {
+	auto levelName = reinterpret_cast<const wchar_t *>(levelInfo[7]);
 
-		if (console) {
-			commands.mutex.lock();
+	for (auto callback : levelLoad.PreCallbacks) {
+		callback(levelName);
+	}
+	
+	auto ret = levelLoad.Original(this_, levelInfo, arg);
 
-			for (auto &command : commands.queue) {
-				console->ConsoleCommand(command->c_str());
-				delete command;
-			}
-
-			commands.queue.clear();
-			commands.queue.shrink_to_fit();
-
-			commands.mutex.unlock();
-		}
+	for (auto callback : levelLoad.PostCallbacks) {
+		callback(levelName);
 	}
 
+	return ret;
+}
+
+void *__fastcall ActorTickHook(Classes::AActor *actor, void *idle, void *arg) {
 	auto ret = actorTick.Original(actor, arg);
 
 	for (auto callback : actorTick.Callbacks) {
@@ -202,8 +215,8 @@ void *__fastcall ActorTickHook(Classes::AActor *actor, void *idle, void *arg) {
 	return ret;
 }
 
-void *__fastcall BonesTickHook(Classes::TArray<class Classes::USkeletalMeshSocket *> *bones, void *idle, void *arg) {
-	auto ret = bonesTick.Original(bones, arg);
+void *__fastcall BonesTickHook(void *this_, void *idle_, Classes::TArray<Classes::FBoneAtom> *bones, void *arg3, void *arg4, void *arg5) {
+	auto ret = bonesTick.Original(this_, bones, arg3, arg4, arg5);
 
 	for (auto callback : bonesTick.Callbacks) {
 		callback(bones);
@@ -217,241 +230,505 @@ int *__fastcall ProjectionTick(Classes::FMatrix *matrix, void *idle, void *arg) 
 	return projectionTick.Original(matrix, arg);
 }
 
-namespace Engine {
-	Classes::UTdGameEngine *GetEngine() {
+Classes::ATdPlayerPawn *SpawnCharacter(Engine::Character character) {
+	static const wchar_t *meshes[] = {
+		nullptr, // Faith
+		L"CH_TKY_Cop_Patrol_Female.SK_TKY_Cop_Patrol_Female", // Kate
+		L"CH_Celeste.SK_Celeste", // Celeste
+		L"CH_TKY_Cop_Pursuit_Female.SK_TKY_Cop_Pursuit_Female", // Assault Celeste
+		L"CH_TKY_Crim_Jacknife.SK_TKY_Crim_Jacknife", // Jacknife
+		L"CH_Miller.SK_Miller", // Miller
+		L"CH_Kreeg.SK_Kreeg", // Kreeg
+		L"CH_TKY_Cop_Pursuit.SK_TKY_Cop_Pursuit", // Pursuit Cop
+		L"TT_Ghost.GhostCharacter_01", // Ghost
+	};
+
+	static const std::vector<std::wstring> materials[] = {
+		// Faith
+		{},
+
+		// Kate
+		{
+			L"MaterialInstanceConstant CH_TKY_Cop_Patrol_Female.MI_Kate_Teeth",
+			L"MaterialInstanceConstant CH_TKY_Cop_Patrol_Female.MI_Kate_Eyes",
+			L"Material CH_TKY_Crim_Fixer.unlitAlpha",
+			L"MaterialInstanceConstant CH_TKY_Cop_Patrol_Female.MI_Kate_Skin",
+			L"MaterialInstanceConstant CH_TKY_Cop_Patrol_Female.MI_Kate_Hair",
+			L"MaterialInstanceConstant CH_TKY_Cop_Patrol_Female.MI_Kate_Cloth",
+		},
+
+		// Celeste
+		{
+			L"Material CH_Celeste.alphablend",
+			L"MaterialInstanceConstant CH_Celeste.MI_HairWTF",
+			L"MaterialInstanceConstant CH_Celeste.MI_Celeste_Teeth",
+			L"MaterialInstanceConstant CH_Celeste.MI_Celeste_Merged_ClothB",
+			L"MaterialInstanceConstant CH_Celeste.MI_Celeste_Merged_SkinB",
+			L"MaterialInstanceConstant CH_Celeste.MI_Celeste_Eyes",
+		},
+
+		// Assault Celeste
+		{
+			L"MaterialInstanceConstant CH_TKY_Cop_Pursuit_Female.MI_CopPursuitFemale",
+		},
+
+		// Jacknife
+		{
+			L"MaterialInstanceConstant CH_TKY_Crim_Jacknife.MI_Jackknife_Teeth",
+			L"MaterialInstanceConstant CH_TKY_Crim_Jacknife.MI_Jackknife_Cloth",
+			L"MaterialInstanceConstant CH_TKY_Crim_Jacknife.MI_TKY_Crim_Prowler_Eyes",
+			L"Material CH_TKY_Crim_Jacknife.M_Jackknife_Eyeshade",
+			L"MaterialInstanceConstant CH_TKY_Crim_Jacknife.MI_Jackknife_jSkin",
+			L"MaterialInstanceConstant CH_TKY_Crim_Jacknife.MI_JackKnife_Hair",
+		},
+
+		// Miller
+		{
+			L"MaterialInstanceConstant CH_Miller.MI_Miller_Eyes",
+			L"MaterialInstanceConstant CH_Miller.MI_Teeth",
+			L"MaterialInstanceConstant CH_Miller.MI_Miller_Merged_Cloth",
+			L"MaterialInstanceConstant CH_Miller.MI_Miller_Merged_Skin",
+			L"Material CH_Miller.Unlit",
+			L"Material CH_Miller.M_Miller_Brow",
+			L"MaterialInstanceConstant CH_Miller.MI_MillerKlurre",
+		},
+
+		// Kreeg
+		{
+			L"MaterialInstanceConstant CH_Kreeg.MI_Kreeg_Teeth",
+			L"MaterialInstanceConstant CH_Kreeg.MI_Kreeg_Cloth",
+			L"MaterialInstanceConstant CH_Kreeg.MI_Kreeg_Skin",
+			L"Material CH_Kreeg.M_Kreeg_Unlit",
+			L"MaterialInstanceConstant CH_Kreeg.MI_Kreeg_Eyes",
+		},
+
+		// Pursuit Cop
+		{
+			L"MaterialInstanceConstant CH_TKY_Cop_Pursuit.MI_TKY_Cop_Pursuit",
+		},
+
+		// Ghost
+		{
+			L"Material TT_Ghost.Materials.M_GhostShader_01",
+		},
+	};
+
+	auto player = Engine::GetPlayerPawn();
+	if (!player) {
+		return nullptr;
+	}
+
+	auto pawn = static_cast<Classes::ATdPlayerPawn *>(player->Spawn(Classes::ATdPlayerPawn::StaticClass(), 0, 0, { 0 }, { 0 }, 0, true));
+	pawn->SetCollisionType(Classes::ECollisionType::COLLIDE_NoCollision);
+
+	if (character != Engine::Character::Faith) {
+		auto mesh = pawn->Mesh3p;
+		mesh->SetSkeletalMesh(static_cast<Classes::USkeletalMesh *>(pawn->STATIC_DynamicLoadObject(meshes[static_cast<size_t>(character)], Classes::USkeletalMesh::StaticClass(), false)), true);
+
+		auto mats = materials[static_cast<size_t>(character)];
+		for (auto i = 0UL; i < mats.size(); ++i) {
+			mesh->SetMaterial(i, static_cast<Classes::UMaterialInterface *>(pawn->STATIC_DynamicLoadObject(mats[i].c_str(), Classes::UMaterialInterface::StaticClass(), false)));
+		}
+
+		if (character == Engine::Character::Kate || character == Engine::Character::Miller || character == Engine::Character::Kreeg) {
+			pawn->PrePivot.Z = 94;
+		}
+	}
+
+	return pawn;
+}
+
+void __fastcall TickHook(float *scales, void *idle, int arg, float delta) {
+	Engine::GetPlayerPawn(true);
+
+	// Queues must be executed inside the context of an engine thread
+	if (commands.Queue.size() > 0) {
+		auto console = Engine::GetConsole();
+
+		if (console) {
+			commands.Mutex.lock();
+
+			for (auto &command : commands.Queue) {
+				console->ConsoleCommand(command.c_str());
+			}
+
+			commands.Queue.clear();
+			commands.Queue.shrink_to_fit();
+
+			commands.Mutex.unlock();
+		}
+	}
+
+	if (spawns.Queue.size() > 0) {
+		spawns.Mutex.lock();
+
+		for (auto &spawn : spawns.Queue) {
+			spawn.second = SpawnCharacter(spawn.first);
+		}
+
+		spawns.Queue.clear();
+		spawns.Queue.shrink_to_fit();
+
+		spawns.Mutex.unlock();
+	}
+
+	for (auto callback : tick.Callbacks) {
+		callback(delta);
+	}
+
+	tick.Original(scales, arg, delta);
+}
+
+Classes::UTdGameEngine *Engine::GetEngine(bool update) {
+	static Classes::UTdGameEngine *cache = nullptr;
+
+	if (!cache || update) {
 		auto objects = Classes::UObject::GetGlobalObjects();
-		for (DWORD i = 0; i < objects.Num(); ++i) {
+		for (auto i = 0UL; i < objects.Num(); ++i) {
 			auto object = objects.GetByIndex(i);
 			if (object && object->IsA(Classes::UTdGameEngine::StaticClass())) {
 				if (object->Outer->GetName() == "Transient") {
-					return reinterpret_cast<Classes::UTdGameEngine *>(object);
+					cache = static_cast<Classes::UTdGameEngine *>(object);
+					break;
 				}
 			}
 		}
-
-		return 0;
 	}
 
-	Classes::UTdGameViewportClient *GetViewportClient() {
-		auto engine = GetEngine();
+	return cache;
+}
+
+Classes::UTdGameViewportClient *Engine::GetViewportClient(bool update) {
+	static Classes::UTdGameViewportClient *cache = nullptr;
+
+	if (!cache || update) {
+		auto engine = GetEngine(update);
 		if (engine) {
-			return reinterpret_cast<Classes::UTdGameViewportClient *>(engine->GameViewport);
+			cache = static_cast<Classes::UTdGameViewportClient *>(engine->GameViewport);
 		}
-
-		return 0;
 	}
 
-	Classes::UTdConsole *GetConsole() {
-		auto viewportClient = GetViewportClient();
+	return cache;
+}
+
+Classes::UTdConsole *Engine::GetConsole(bool update) {
+	static Classes::UTdConsole *cache = nullptr;
+
+	if (!cache || update) {
+		auto viewportClient = GetViewportClient(update);
 		if (viewportClient) {
-			return reinterpret_cast<Classes::UTdConsole *>(viewportClient->ViewportConsole);
+			cache = static_cast<Classes::UTdConsole *>(viewportClient->ViewportConsole);
 		}
-
-		return 0;
 	}
 
-	void ExecuteCommand(Classes::FString command) {
-		commands.mutex.lock();
-		commands.queue.push_back(new std::wstring(command.c_str()));
-		commands.mutex.unlock();
-	}
+	return cache;
+}
 
-	Classes::AWorldInfo *GetWorld() {
+void Engine::ExecuteCommand(Classes::FString command) {
+	commands.Mutex.lock();
+	commands.Queue.push_back(std::wstring(command.c_str()));
+	commands.Mutex.unlock();
+}
+
+Classes::AWorldInfo *Engine::GetWorld(bool update) {
+	static Classes::AWorldInfo *cache = nullptr;
+
+	if (!cache || update) {
 		auto objects = Classes::UObject::GetGlobalObjects();
-		for (DWORD i = 0; i < objects.Num(); ++i) {
+		for (auto i = 0UL; i < objects.Num(); ++i) {
 			auto object = objects.GetByIndex(i);
 			if (object && object->IsA(Classes::AWorldInfo::StaticClass())) {
-				auto world = reinterpret_cast<Classes::AWorldInfo *>(object);
+				auto world = static_cast<Classes::AWorldInfo *>(object);
 
 				for (auto controller = world->ControllerList; controller; controller = controller->NextController) {
 					if (controller->IsA(Classes::ATdPlayerController::StaticClass())) {
-						return world;
+						cache = world;
+						return cache;
 					}
 				}
 			}
 		}
-
-		return 0;
 	}
 
-	Classes::ATdPlayerController *GetPlayerController() {
-		auto world = GetWorld();
+	return cache;
+}
+
+Classes::ATdPlayerController *Engine::GetPlayerController(bool update) {
+	static Classes::ATdPlayerController *cache = nullptr;
+
+	if (!cache || update) {
+		auto world = GetWorld(update);
 		if (world) {
 			for (auto controller = world->ControllerList; controller; controller = controller->NextController) {
 				if (controller->IsA(Classes::ATdPlayerController::StaticClass())) {
-					return reinterpret_cast<Classes::ATdPlayerController *>(controller);
+					cache = static_cast<Classes::ATdPlayerController *>(controller);
+					break;
 				}
 			}
 		}
-
-		return 0;
 	}
 
-	Classes::ATdPlayerPawn *GetPlayerPawn() {
-		auto controller = GetPlayerController();
+	return cache;
+}
+
+Classes::ATdPlayerPawn *Engine::GetPlayerPawn(bool update) {
+	static Classes::ATdPlayerPawn *cache = nullptr;
+
+	if (!cache || update) {
+		auto controller = GetPlayerController(update);
 		if (controller) {
-			return reinterpret_cast<Classes::ATdPlayerPawn *>(controller->AcknowledgedPawn);
+			cache = static_cast<Classes::ATdPlayerPawn *>(controller->AcknowledgedPawn);
 		}
-
-		return 0;
 	}
 
-	bool WorldToScreen(IDirect3DDevice9 *device, Classes::FVector *inOutLocation) {
-		auto controller = Engine::GetPlayerController();
-		if (!controller || !projectionTick.Matrix) {
-			return false;
-		}
+	return cache;
+}
 
-		auto fov = tanf((controller->FOVAngle * CONST_Pi / 180.0f) / 2.0f);
-		auto displaySize = ImGui::GetIO().DisplaySize;
-		auto ratioFov = (displaySize.x / displaySize.y) / fov;
+void Engine::SpawnCharacter(Character character, Classes::ATdPlayerPawn *&spawned) {
+	spawned = nullptr;
+	
+	spawns.Mutex.lock();
+	spawns.Queue.push_back({ character, spawned });
+	spawns.Mutex.unlock();
+}
 
-		D3DXMATRIX result, proj, world, view;
-		memcpy(&proj, projectionTick.Matrix, sizeof(proj));
+void Engine::TransformBones(Character character, Classes::TArray<Classes::FBoneAtom> *destBones, Classes::FBoneAtom *src) {
+	auto dest = destBones->Buffer();
+	auto destCount = destBones->Num();
 
-		for (int i = 0; i < 4; ++i) {
-			proj.m[i][0] /= fov;
-			proj.m[i][1] *= ratioFov;
-			proj.m[i][3] = proj.m[i][2];
-			proj.m[i][2] *= 0.998f;
-		}
+	switch (character) {
+		case Character::Faith: case Character::Ghost:
+			memcpy(dest, src, PLAYER_PAWN_BONE_COUNT * sizeof(Classes::FBoneAtom));
+			break;
+		case Character::Kate:
+			memcpy(dest, src, 7 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + 14, src + 14, 10 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + 33, src + 39, sizeof(Classes::FBoneAtom));
+			memcpy(dest + 36, src + 42, sizeof(Classes::FBoneAtom));
+			memcpy(dest + 39, src + 45, 63 * sizeof(Classes::FBoneAtom));
+			break;
+		case Character::Celeste:
+			memcpy(dest, src, 7 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + destCount - 63, src + 45, 63 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + 18, src + 18, sizeof(Classes::FBoneAtom));
+			break;
+		case Character::AssaultCeleste:
+			memcpy(dest, src, 7 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + destCount - 63, src + 45, 63 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + 17, src + 18, sizeof(Classes::FBoneAtom));
+			break;
+		case Character::Jacknife:
+			memcpy(dest, src, 7 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + destCount - 63, src + 45, 63 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + 18, src + 18, sizeof(Classes::FBoneAtom));
+			break;
+		case Character::Miller:
+			memcpy(dest, src, 7 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + destCount - 63, src + 45, 63 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + 18, src + 18, sizeof(Classes::FBoneAtom));
+			break;
+		case Character::Kreeg:
+			memcpy(dest, src, 7 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + destCount - 63, src + 45, 63 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + 18, src + 18, sizeof(Classes::FBoneAtom));
+			break;
+		case Character::PursuitCop:
+			memcpy(dest, src, 7 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + destCount - 63, src + 45, 63 * sizeof(Classes::FBoneAtom));
+			memcpy(dest + 15, src + 18, sizeof(Classes::FBoneAtom));
+			break;
+	}
+}
 
-		device->GetTransform(D3DTS_VIEW, &view);
-		device->GetTransform(D3DTS_WORLD, &world);
-
-		D3DXMatrixMultiply(&result, &proj, &view);
-		D3DXMatrixMultiply(&proj, &result, &world);
-
-		D3DXVECTOR4 in(inOutLocation->X, inOutLocation->Y, inOutLocation->Z, 1), out;
-		D3DXVec4Transform(&out, &in, &proj);
-		
-		*inOutLocation = Classes::FVector{ 
-			(((out.x / out.w) + 1.0f) / 2.0f) * displaySize.x,
-			((1.0f - (out.y / out.w)) / 2.0f) * displaySize.y,
-			out.w,
-		};
-		
-		return !(out.z < 0 || out.w < 0);
+bool Engine::WorldToScreen(IDirect3DDevice9 *device, Classes::FVector &inOutLocation) {
+	auto controller = Engine::GetPlayerController();
+	if (!controller || !projectionTick.Matrix) {
+		return false;
 	}
 
-	void OnRenderScene(RenderSceneCallback callback) {
-		renderScene.Callbacks.push_back(callback);
+	auto fov = tanf((controller->FOVAngle * CONST_Pi / 180.0f) / 2.0f);
+	auto displaySize = ImGui::GetIO().DisplaySize;
+	auto ratioFov = (displaySize.x / displaySize.y) / fov;
+
+	D3DXMATRIX result, proj, world, view;
+	proj = *projectionTick.Matrix;
+
+	for (int i = 0; i < 4; ++i) {
+		proj.m[i][0] /= fov;
+		proj.m[i][1] *= ratioFov;
+		proj.m[i][3] = proj.m[i][2];
+		proj.m[i][2] *= 0.998f;
 	}
 
-	void OnProcessEvent(ProcessEventCallback callback) {
-		processEvent.Callbacks.push_back(callback);
+	device->GetTransform(D3DTS_VIEW, &view);
+	device->GetTransform(D3DTS_WORLD, &world);
+
+	D3DXMatrixMultiply(&result, &proj, &view);
+	D3DXMatrixMultiply(&proj, &result, &world);
+
+	D3DXVECTOR4 in(inOutLocation.X, inOutLocation.Y, inOutLocation.Z, 1), out;
+	D3DXVec4Transform(&out, &in, &proj);
+
+	inOutLocation = {
+		(((out.x / out.w) + 1.0f) / 2.0f) * displaySize.x,
+		((1.0f - (out.y / out.w)) / 2.0f) * displaySize.y,
+		out.w
+	};
+
+	return !(out.z < 0 || out.w < 0);
+}
+
+void Engine::OnRenderScene(RenderSceneCallback callback) {
+	renderScene.Callbacks.push_back(callback);
+}
+
+void Engine::OnProcessEvent(ProcessEventCallback callback) {
+	processEvent.Callbacks.push_back(callback);
+}
+
+void Engine::OnPreLevelLoad(LevelLoadCallback callback) {
+	levelLoad.PreCallbacks.push_back(callback);
+}
+
+void Engine::OnPostLevelLoad(LevelLoadCallback callback) {
+	levelLoad.PostCallbacks.push_back(callback);
+}
+
+void Engine::OnActorTick(ActorTickCallback callback) {
+	actorTick.Callbacks.push_back(callback);
+}
+
+void Engine::OnBonesTick(BonesTickCallback callback) {
+	bonesTick.Callbacks.push_back(callback);
+}
+
+void Engine::OnTick(TickCallback callback) {
+	tick.Callbacks.push_back(callback);
+}
+
+void Engine::OnInput(InputCallback callback) {
+	window.InputCallbacks.push_back(callback);
+}
+
+void Engine::OnSuperInput(InputCallback callback) {
+	window.SuperInputCallbacks.push_back(callback);
+}
+
+void Engine::BlockInput(bool block) {
+	ImGui::GetIO().MouseDrawCursor = window.BlockInput = block;
+}
+
+bool Engine::Initialize() {
+	void *ptr = nullptr;
+
+	/*** SDK ***/
+	// GNames
+	if (!(ptr = Pattern::FindPattern("\x8B\x0D\x00\x00\x00\x00\x8B\x84\x24\x00\x00\x00\x00\x8B\x04\x81", "xx????xxx????xxx"))) {
+		MessageBoxA(0, "Failed to find GNames", "Failure", MB_ICONERROR);
+		return false;
 	}
 
-	void OnActorTick(ActorTickCallback callback) {
-		actorTick.Callbacks.push_back(callback);
+	Classes::FName::GNames = reinterpret_cast<decltype(Classes::FName::GNames)>(*reinterpret_cast<void **>(reinterpret_cast<byte *>(ptr) + 2));
+
+	// GObjects
+	if (!(ptr = Pattern::FindPattern("\x8B\x15\x00\x00\x00\x00\x8B\x0C\xB2\x8D\x44\x24\x30", "xx????xxxxxxx"))) {
+		MessageBoxA(0, "Failed to find GObjects", "Failure", MB_ICONERROR);
+		return false;
 	}
 
-	void OnBonesTick(BonesTickCallback callback) {
-		bonesTick.Callbacks.push_back(callback);
+	Classes::UObject::GObjects = reinterpret_cast<decltype(Classes::UObject::GObjects)>(*reinterpret_cast<void **>(reinterpret_cast<byte *>(ptr) + 2));
+
+	/*** D3D9 Hooks ***/
+	// EndScene
+	if (!(ptr = Pattern::FindPattern("d3d9.dll", "\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx"))) {
+		MessageBoxA(0, "Failed to find D3D9 exports", "Failure", MB_ICONERROR);
+		return false;
 	}
 
-	void OnInput(InputCallback callback) {
-		window.InputCallbacks.push_back(callback);
+	ptr = *(void **)((byte *)ptr + 2);
+	if (!Hook::TrampolineHook(EndSceneHook, ((void **)ptr)[D3D9_EXPORT_ENDSCENE], reinterpret_cast<void **>(&renderScene.Original))) {
+		MessageBoxA(0, "Failed to hook D3D9 EndScene", "Failure", MB_ICONERROR);
+		return false;
 	}
 
-	void OnSuperInput(InputCallback callback) {
-		window.SuperInputCallbacks.push_back(callback);
+	// Reset
+	if (!Hook::TrampolineHook(ResetHook, ((void **)ptr)[D3D9_EXPORT_RESET], reinterpret_cast<void **>(&resetScene.Original))) {
+		MessageBoxA(0, "Failed to hook D3D9 Reset", "Failure", MB_ICONERROR);
+		return false;
 	}
 
-	void BlockInput(bool block) {
-		ImGui::GetIO().MouseDrawCursor = window.BlockInput = block;
+	// PeekMessage
+	if (!Hook::TrampolineHook(PeekMessageHook, PeekMessageW, reinterpret_cast<void **>(&window.PeekMessage))) {
+		MessageBoxA(0, "Failed to hook D3D9 Reset", "Failure", MB_ICONERROR);
+		return false;
 	}
 
-	bool Initialize() {
-		void *ptr = 0;
-
-		/*** SDK ***/
-		// GNames
-		if (!(ptr = Pattern::FindPattern("\x8B\x0D\x00\x00\x00\x00\x8B\x84\x24\x00\x00\x00\x00\x8B\x04\x81", "xx????xxx????xxx"))) {
-			MessageBoxA(0, "Failed to find GNames", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		Classes::FName::GNames = reinterpret_cast<Classes::TArray<Classes::FNameEntry *> *>(*reinterpret_cast<void **>(reinterpret_cast<byte *>(ptr) + 2));
-
-		// GObjects
-		if (!(ptr = Pattern::FindPattern("\x8B\x15\x00\x00\x00\x00\x8B\x0C\xB2\x8D\x44\x24\x30", "xx????xxxxxxx"))) {
-			MessageBoxA(0, "Failed to find GObjects", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		Classes::UObject::GObjects = reinterpret_cast<Classes::TArray<Classes::UObject *> *>(*reinterpret_cast<void **>(reinterpret_cast<byte *>(ptr) + 2));
-
-		/*** D3D9 Hooks ***/
-		// EndScene
-		if (!(ptr = Pattern::FindPattern("d3d9.dll", "\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx"))) {
-			MessageBoxA(0, "Failed to find D3D9 exports", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		ptr = *(void **)((byte *)ptr + 2);	
-		if (!Hook::TrampolineHook(EndSceneHook, ((void **)ptr)[D3D9_EXPORT_ENDSCENE], reinterpret_cast<void **>(&renderScene.Original))) {
-			MessageBoxA(0, "Failed to hook D3D9 EndScene", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		// Reset
-		if (!Hook::TrampolineHook(ResetHook, ((void **)ptr)[D3D9_EXPORT_RESET], reinterpret_cast<void **>(&resetScene.Original))) {
-			MessageBoxA(0, "Failed to hook D3D9 Reset", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		// PeekMessage
-		if (!Hook::TrampolineHook(PeekMessageHook, PeekMessageW, reinterpret_cast<void **>(&window.PeekMessage))) {
-			MessageBoxA(0, "Failed to hook D3D9 Reset", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		/*** Engine Hooks ***/
-		// ProcessEvent
-		if (!(ptr = Pattern::FindPattern("\x56\x8B\xF1\x8B\x0D\x00\x00\x00\x00\x85\xC9\x74\x09", "xxxxx????xxxx"))) {
-			MessageBoxA(0, "Failed to find ProcessEvent", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		if (!Hook::TrampolineHook(ProcessEventHook, ptr, reinterpret_cast<void **>(&processEvent.Original))) {
-			MessageBoxA(0, "Failed to hook ProcessEvent", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		// ActorTick
-		if (!(ptr = Pattern::FindPattern("\x55\x8B\xEC\x83\xE4\xF0\x83\xEC\x38\x56\x57\x8B\x81", "xxxxxxxxxxxxx"))) {
-			MessageBoxA(0, "Failed to find ActorTick", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		if (!Hook::TrampolineHook(ActorTickHook, ptr, reinterpret_cast<void **>(&actorTick.Original))) {
-			MessageBoxA(0, "Failed to hook ActorTick", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		// BonesTick
-		if (!(ptr = Pattern::FindPattern("\xE8\x00\x00\x00\x00\x8B\x74\x24\x14\x8D\x7B\x68", "x????xxxxxxx"))) {
-			MessageBoxA(0, "Failed to find BonesTick", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		if (!Hook::TrampolineHook(BonesTickHook, RELATIVE_ADDR(ptr, JMP_SIZE), reinterpret_cast<void **>(&bonesTick.Original))) {
-			MessageBoxA(0, "Failed to hook BonesTick", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		// ProjectionTick
-		if (!(ptr = Pattern::FindPattern("\x83\xEC\x3C\xD9\x44\x24\x44", "xxxxxxx"))) {
-			MessageBoxA(0, "Failed to find ProjectionTick", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		if (!Hook::TrampolineHook(ProjectionTick, ptr, reinterpret_cast<void **>(&projectionTick.Original))) {
-			MessageBoxA(0, "Failed to hook ProjectionTick", "Failure", MB_ICONERROR);
-			return false;
-		}
-
-		return true;
+	/*** Engine Hooks ***/
+	// ProcessEvent
+	if (!(ptr = Pattern::FindPattern("\x56\x8B\xF1\x8B\x0D\x00\x00\x00\x00\x85\xC9\x74\x09", "xxxxx????xxxx"))) {
+		MessageBoxA(0, "Failed to find ProcessEvent", "Failure", MB_ICONERROR);
+		return false;
 	}
+
+	if (!Hook::TrampolineHook(ProcessEventHook, ptr, reinterpret_cast<void **>(&processEvent.Original))) {
+		MessageBoxA(0, "Failed to hook ProcessEvent", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	// LevelLoad
+	if (!(ptr = Pattern::FindPattern("\x6A\xFF\x68\x00\x00\x00\x00\x64\xA1\x00\x00\x00\x00\x50\x81\xEC\x00\x00\x00\x00\x53\x55\x56\x57\xA1\x00\x00\x00\x00\x33\xC4\x50\x8D\x84\x24\x00\x00\x00\x00\x64\xA3\x00\x00\x00\x00\x8B\xE9\x89\x6C\x24\x30\x33\xFF", "xxx????xx????xxx????xxxxx????xxxxxx????xx????xxxxxxxx"))) {
+		MessageBoxA(0, "Failed to find LevelLoad", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	if (!Hook::TrampolineHook(LevelLoadHook, ptr, reinterpret_cast<void **>(&levelLoad.Original))) {
+		MessageBoxA(0, "Failed to hook LevelLoad", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	// ActorTick
+	if (!(ptr = Pattern::FindPattern("\x55\x8B\xEC\x83\xE4\xF0\x83\xEC\x38\x56\x57\x8B\x81", "xxxxxxxxxxxxx"))) {
+		MessageBoxA(0, "Failed to find ActorTick", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	if (!Hook::TrampolineHook(ActorTickHook, ptr, reinterpret_cast<void **>(&actorTick.Original))) {
+		MessageBoxA(0, "Failed to hook ActorTick", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	// BonesTick
+	if (!(ptr = Pattern::FindPattern("\x55\x8B\xEC\x83\xE4\xF0\x6A\xFF\x68\x00\x00\x00\x00\x64\xA1\x00\x00\x00\x00\x50\x81\xEC\x00\x00\x00\x00\x53\x56\x57\xA1\x00\x00\x00\x00\x33\xC4\x50\x8D\x84\x24\x00\x00\x00\x00\x64\xA3\x00\x00\x00\x00\x8B\x45\x0C", "xxxxxxxxx????xx????xxx????xxxx????xxxxxx????xx????xxx"))) {
+		MessageBoxA(0, "Failed to find BonesTick", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	if (!Hook::TrampolineHook(BonesTickHook, ptr, reinterpret_cast<void **>(&bonesTick.Original))) {
+		MessageBoxA(0, "Failed to hook BonesTick", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	// ProjectionTick
+	if (!(ptr = Pattern::FindPattern("\x83\xEC\x3C\xD9\x44\x24\x44", "xxxxxxx"))) {
+		MessageBoxA(0, "Failed to find ProjectionTick", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	if (!Hook::TrampolineHook(ProjectionTick, ptr, reinterpret_cast<void **>(&projectionTick.Original))) {
+		MessageBoxA(0, "Failed to hook ProjectionTick", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	// Tick
+	if (!(ptr = Pattern::FindPattern("\x83\xEC\x48\x53\x55\x56\x57\x8B\xF9\xE8\x00\x00\x00\x00\x8B\x0D\x00\x00\x00\x00\x8B\x15\x00\x00\x00\x00\x8B\xE8", "xxxxxxxxxx????xx????xx????xx"))) {
+		MessageBoxA(0, "Failed to find Tick", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	if (!Hook::TrampolineHook(TickHook, ptr, reinterpret_cast<void **>(&tick.Original))) {
+		MessageBoxA(0, "Failed to hook Tick", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	return true;
 }

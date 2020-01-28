@@ -3,7 +3,7 @@
 
 // You may use this file to debug, understand or extend ImGui features but we don't provide any guarantee of forward compatibility!
 // Set:
-//   #define IMGUI_DEFINE_MATH_OPERATORS
+#define IMGUI_DEFINE_MATH_OPERATORS
 // To implement maths operators for ImVec2 (disabled by default to not collide with using IM_VEC2_CLASS_EXTRA along with your own math types+operators)
 
 /*
@@ -1699,6 +1699,9 @@ namespace ImGui
 
     // Debug Tools
     inline void             DebugStartItemPicker() { GImGui->DebugItemPickerActive = true; }
+
+    IMGUI_API ImGuiWindow  *BeginRawScene(const char *name);
+    IMGUI_API void          EndRawScene();
 
 } // namespace ImGui
 

@@ -171,6 +171,7 @@
     <ClInclude Include="imgui\imstb_rectpack.h" />
     <ClInclude Include="imgui\imstb_textedit.h" />
     <ClInclude Include="imgui\imstb_truetype.h" />
+    <ClInclude Include="json.h" />
     <ClInclude Include="menu.h" />
     <ClInclude Include="pattern.h" />
     <ClInclude Include="sdk.h" />
@@ -226,6 +227,7 @@
     <ClInclude Include="SDK\ME_WinDrv_classes.hpp" />
     <ClInclude Include="SDK\ME_WinDrv_parameters.hpp" />
     <ClInclude Include="SDK\ME_WinDrv_structs.hpp" />
+    <ClInclude Include="settings.h" />
     <ClInclude Include="stdafx.h" />
   </ItemGroup>
   <ItemGroup>
@@ -233,7 +235,6 @@
     <ClCompile Include="engine.cpp" />
     <ClCompile Include="hook.cpp" />
     <ClCompile Include="imgui\imgui.cpp" />
-    <ClCompile Include="imgui\imgui_demo.cpp" />
     <ClCompile Include="imgui\imgui_draw.cpp" />
     <ClCompile Include="imgui\imgui_impl_dx9.cpp" />
     <ClCompile Include="imgui\imgui_impl_win32.cpp" />
@@ -259,6 +260,7 @@
     <ClCompile Include="SDK\ME_Ts_functions.cpp" />
     <ClCompile Include="SDK\ME_UnrealEd_functions.cpp" />
     <ClCompile Include="SDK\ME_WinDrv_functions.cpp" />
+    <ClCompile Include="settings.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

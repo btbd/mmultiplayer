@@ -111,9 +111,9 @@ enum class EDistributionVectorMirrorFlags : uint8_t
 // 0x000C
 struct FRotator
 {
-	int                                                Pitch;                                                    // 0x0000(0x0004) (Edit)
-	int                                                Yaw;                                                      // 0x0004(0x0004) (Edit)
-	int                                                Roll;                                                     // 0x0008(0x0004) (Edit)
+	unsigned int                                                Pitch;                                           // 0x0000(0x0004) (Edit)
+	unsigned int                                                Yaw;                                             // 0x0004(0x0004) (Edit)
+	unsigned int                                                Roll;                                            // 0x0008(0x0004) (Edit)
 };
 
 // ScriptStruct Core.Object.Vector

@@ -2504,7 +2504,7 @@ bool ImGui::SliderBehavior(const ImRect& bb, ImGuiID id, ImGuiDataType data_type
     return false;
 }
 
-bool ImGui::SliderScalar(const char* label, ImGuiDataType data_type, void* v, const void* v_min, const void* v_max, const char* format, float power)
+bool ImGui::SliderScalar(const char* label, ImGuiDataType data_type, void* v, const void* v_min, const void* v_max, void *highlights, int num_highlights, const char* format, float power)
 {
     ImGuiWindow* window = GetCurrentWindow();
     if (window->SkipItems)
@@ -2529,6 +2529,29 @@ bool ImGui::SliderScalar(const char* label, ImGuiDataType data_type, void* v, co
     else if (data_type == ImGuiDataType_S32 && strcmp(format, "%d") != 0) // (FIXME-LEGACY: Patch old "%.0f" format string to use "%d", read function more details.)
         format = PatchFormatStringFloatToInt(format);
 
+    auto renderHighlights = [&]() {
+        auto originalActiveId = g.ActiveId;
+        g.ActiveId = -1;
+
+        if (highlights && num_highlights) {
+            auto size = DataTypeGetInfo(data_type)->Size;
+            for (auto i = 0; i < num_highlights; ++i) {
+                auto ptr = (char *)highlights + (i * size);
+
+                ImRect pos;
+                SliderBehavior(frame_bb, id, data_type, ptr, v_min, v_max, format, power, ImGuiSliderFlags_None, &pos);
+
+                ImVec2 offset(pos.GetWidth() * 0.25f, 0);;
+                pos.Min += offset;
+                pos.Max -= offset;
+
+                window->DrawList->AddRectFilled(pos.Min, pos.Max, GetColorU32(ImVec4(1.0, 0.25, 0.25, 1.0)));
+            }
+        }
+
+        g.ActiveId = originalActiveId;
+    };
+
     // Tabbing or CTRL-clicking on Slider turns it into an input box
     const bool hovered = ItemHoverable(frame_bb, id);
     bool temp_input_is_active = TempInputTextIsActive(id);
@@ -2550,8 +2573,12 @@ bool ImGui::SliderScalar(const char* label, ImGuiDataType data_type, void* v, co
             }
         }
     }
-    if (temp_input_is_active || temp_input_start)
-        return TempInputTextScalar(frame_bb, id, label, data_type, v, format);
+
+    if (temp_input_is_active || temp_input_start) {
+        auto ret = TempInputTextScalar(frame_bb, id, label, data_type, v, format);
+        renderHighlights();
+        return ret;
+    }
 
     // Draw frame
     const ImU32 frame_col = GetColorU32(g.ActiveId == id ? ImGuiCol_FrameBgActive : g.HoveredId == id ? ImGuiCol_FrameBgHovered : ImGuiCol_FrameBg);
@@ -2568,6 +2595,8 @@ bool ImGui::SliderScalar(const char* label, ImGuiDataType data_type, void* v, co
     if (grab_bb.Max.x > grab_bb.Min.x)
         window->DrawList->AddRectFilled(grab_bb.Min, grab_bb.Max, GetColorU32(g.ActiveId == id ? ImGuiCol_SliderGrabActive : ImGuiCol_SliderGrab), style.GrabRounding);
 
+    renderHighlights();
+
     // Display value using user-provided display format so user can add prefix/suffix/decorations to the value.
     char value_buf[64];
     const char* value_buf_end = value_buf + DataTypeFormatString(value_buf, IM_ARRAYSIZE(value_buf), data_type, v, format);
@@ -2577,6 +2606,7 @@ bool ImGui::SliderScalar(const char* label, ImGuiDataType data_type, void* v, co
         RenderText(ImVec2(frame_bb.Max.x + style.ItemInnerSpacing.x, frame_bb.Min.y + style.FramePadding.y), label);
 
     IMGUI_TEST_ENGINE_ITEM_INFO(id, label, window->DC.ItemFlags);
+
     return value_changed;
 }
 
@@ -2598,7 +2628,7 @@ bool ImGui::SliderScalarN(const char* label, ImGuiDataType data_type, void* v, i
         PushID(i);
         if (i > 0)
             SameLine(0, g.Style.ItemInnerSpacing.x);
-        value_changed |= SliderScalar("", data_type, v, v_min, v_max, format, power);
+        value_changed |= SliderScalar("", data_type, v, v_min, v_max, nullptr, 0, format, power);
         PopID();
         PopItemWidth();
         v = (void*)((char*)v + type_size);
@@ -2618,7 +2648,7 @@ bool ImGui::SliderScalarN(const char* label, ImGuiDataType data_type, void* v, i
 
 bool ImGui::SliderFloat(const char* label, float* v, float v_min, float v_max, const char* format, float power)
 {
-    return SliderScalar(label, ImGuiDataType_Float, v, &v_min, &v_max, format, power);
+    return SliderScalar(label, ImGuiDataType_Float, v, &v_min, &v_max, nullptr, 0, format, power);
 }
 
 bool ImGui::SliderFloat2(const char* label, float v[2], float v_min, float v_max, const char* format, float power)
@@ -2646,9 +2676,9 @@ bool ImGui::SliderAngle(const char* label, float* v_rad, float v_degrees_min, fl
     return value_changed;
 }
 
-bool ImGui::SliderInt(const char* label, int* v, int v_min, int v_max, const char* format)
+bool ImGui::SliderInt(const char* label, int* v, int v_min, int v_max, int *highlights, int num_highlights, const char* format)
 {
-    return SliderScalar(label, ImGuiDataType_S32, v, &v_min, &v_max, format);
+    return SliderScalar(label, ImGuiDataType_S32, v, &v_min, &v_max, highlights, num_highlights, format);
 }
 
 bool ImGui::SliderInt2(const char* label, int v[2], int v_min, int v_max, const char* format)
@@ -7588,3 +7618,24 @@ void ImGui::Columns(int columns_count, const char* id, bool border)
 }
 
 //-------------------------------------------------------------------------
+
+ImGuiWindow *ImGui::BeginRawScene(const char *name) {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
+    ImGui::Begin(name, nullptr, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoTitleBar);
+
+    auto &io = ImGui::GetIO();
+    ImGui::SetWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+    ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, io.DisplaySize.y), ImGuiCond_Always);
+
+    return ImGui::GetCurrentWindow();
+}
+
+void ImGui::EndRawScene() {
+    ImGui::GetCurrentWindow()->DrawList->PushClipRectFullScreen();
+    ImGui::End();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2);
+    ImGui::Render();
+}

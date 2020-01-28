@@ -27,6 +27,11 @@ public:
 		Count = Max = 0;
 	};
 
+	inline T *Buffer() const
+	{
+		return Data;
+	};
+
 	inline size_t Num() const
 	{
 		return Count;

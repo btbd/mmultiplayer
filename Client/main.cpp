@@ -1,35 +1,32 @@
 #include "stdafx.h"
 
 BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
-	AllocConsole();
-	(void)freopen("CONIN$", "r", stdin);
-	(void)freopen("CONOUT$", "w", stdout);
-	(void)freopen("CONOUT$", "w", stderr);
+	if (reason == DLL_PROCESS_ATTACH) {
+		Settings::Load();
 
-	Addon *addons[] = { new Dolly() };
-	
-	switch (reason) {
-		case DLL_PROCESS_ATTACH:
-			if (!Engine::Initialize()) {
-				printf("fatal: failed to initialize engine\n");
-				break;
+		AllocConsole();
+		static_cast<VOID>(freopen("CONIN$", "r", stdin));
+		static_cast<VOID>(freopen("CONOUT$", "w", stdout));
+		static_cast<VOID>(freopen("CONOUT$", "w", stderr));
+
+		Addon *addons[] = { new Dolly() };
+
+		if (!Engine::Initialize()) {
+			printf("fatal: failed to initialize engine\n");
+			return TRUE;
+		}
+
+		if (!Menu::Initialize()) {
+			printf("fatal: failed to initialize menu\n");
+			return TRUE;
+		}
+
+		for (auto &addon : addons) {
+			if (!addon->Initialize()) {
+				printf("fatal: %s failed to initialize\n", addon->GetName().c_str());
+				return TRUE;
 			}
-
-			if (!Menu::Initialize()) {
-				printf("fatal: failed to initialize menu\n");
-				break;
-			}
-
-			for (auto &addon : addons) {
-				if (!addon->Initialize()) {
-					printf("fatal: %s failed to initialize\n", addon->GetName().c_str());
-					break;
-				}
-			}
-
-			break;
-		case DLL_PROCESS_DETACH:
-			break;
+		}
 	}
 	
 	return TRUE;

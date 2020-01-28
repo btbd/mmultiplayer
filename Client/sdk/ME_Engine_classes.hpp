@@ -3,7 +3,7 @@
 // Mirror's Edge (1.0) SDK
 
 #ifdef _MSC_VER
-	#pragma pack(push, 0x4)
+	#pragma pack(push, 0x1)
 #endif
 
 namespace Classes

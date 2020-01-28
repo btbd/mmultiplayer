@@ -13,16 +13,18 @@
 
 #include <vector>
 #include <mutex>
+#include <fstream>
 
 #include "imgui/imgui.h"
+#include "imgui/imgui_internal.h"
 #include "imgui/imgui_impl_dx9.h"
 #include "imgui/imgui_impl_win32.h"
-
-IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+#include "json.h"
 
 #include "sdk.h"
 #include "hook.h"
 #include "pattern.h"
+#include "settings.h"
 #include "engine.h"
 #include "menu.h"
 #include "addon.h"

@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-bool show = false;
+auto show = false;
 std::vector<MenuTab> tabs;
 
 void RenderMenu(IDirect3DDevice9 *device) {
@@ -25,27 +25,6 @@ void InputHandler(int msg, int keycode) {
 		show = !show;
 		Engine::BlockInput(show);
 	}
-
-	/* if (msg == WM_KEYDOWN && keycode == 0x31) {
-		auto pawn = Engine::GetPlayerPawn();
-
-		auto actor = (Classes::ATdPlayerPawn *)pawn->Spawn(Classes::ATdPlayerPawn::StaticClass(), 0, 0, pawn->Location, pawn->Rotation, 0, true);
-		actor->Mesh3p->SetMaterial(0, (Classes::UMaterialInterface *)pawn->STATIC_DynamicLoadObject(L"Material TT_Ghost.Materials.M_GhostShader_01", Classes::UMaterialInterface::StaticClass(), false));
-		actor->Mesh3p->SetSkeletalMesh((Classes::USkeletalMesh *)pawn->STATIC_DynamicLoadObject(L"TT_Ghost.GhostCharacter_01", Classes::USkeletalMesh::StaticClass(), false), true);
-
-		/* auto objects = Classes::UObject::GetGlobalObjects();
-		for (DWORD i = 0; i < objects.Num(); ++i) {
-			auto object = objects.GetByIndex(i);
-			if (object && (object->IsA(Classes::UMaterialInterface::StaticClass()) || object->IsA(Classes::UMaterial::StaticClass()))) {
-				printf("%s\n", object->GetFullName().c_str());
-
-				// mesh->bCollideWorld = mesh->bCollideWhenPlacing = false;
-
-				// auto pawn = Engine::GetPlayerPawn();
-				// printf("%x\n", (DWORD)Engine::GetWorld()->Spawn(Classes::ATdPlayerPawn::StaticClass(), 0, 0, pawn->Location, pawn->Rotation, 0, true));
-			}
-		} 
-	} */
 }
 
 /*** Basic Tabs ***/
@@ -61,7 +40,7 @@ void EngineTab() {
 	if (ImGui::Button("Execute Comamnd") && command[0]) {
 		wchar_t wcommand[0xFFF] = { 0 };
 
-		int len = (int)strlen(command);
+		auto len = strlen(command);
 		MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, command, len, wcommand, len);
 
 		Engine::ExecuteCommand(wcommand);
