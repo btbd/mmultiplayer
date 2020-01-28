@@ -61,17 +61,21 @@ type Room struct {
 }
 
 func (room *Room) SendMessage(msg interface{}) {
+	system.RLock()
 	for _, c := range room.Clients {
-		c.SendMessage(msg)
+		go c.SendMessage(msg)
 	}
+	system.RUnlock()
 }
 
 func (room *Room) SendMessageExcept(id uint32, msg interface{}) {
+	system.RLock()
 	for _, c := range room.Clients {
 		if c.Id != id {
-			c.SendMessage(msg)
+			go c.SendMessage(msg)
 		}
 	}
+	system.RUnlock()
 }
 
 type System struct {
@@ -101,7 +105,15 @@ func main() {
 	go udpListener()
 
 	for {
-		time.Sleep(5 * time.Second)
+		time.Sleep(2 * time.Second)
+
+		system.RLock()
+		for _, r := range system.Rooms {
+			r.SendMessage(map[string]interface{}{
+				"type": "ping",
+			})
+		}
+		system.RUnlock()
 
 		var newRooms = map[string]*Room{}
 
@@ -109,10 +121,10 @@ func main() {
 		for name, r := range system.Rooms {
 			var newClients []*Client
 			for _, c := range r.Clients {
-				if time.Since(c.LastSeen) < 2*time.Second {
+				if time.Since(c.LastSeen) < 5*time.Second {
 					newClients = append(newClients, c)
 				} else {
-					r.SendMessageExcept(c.Id, map[string]interface{}{
+					go r.SendMessageExcept(c.Id, map[string]interface{}{
 						"type": "disconnect",
 						"id":   c.Id,
 					})
@@ -143,7 +155,7 @@ func getTrimStringField(obj map[string]interface{}, field string) (string, bool)
 	}
 
 	v = strings.TrimSpace(v)
-	return v, v == ""
+	return v, v != ""
 }
 
 func tcpHandler(c net.Conn) {
@@ -178,8 +190,8 @@ func tcpHandler(c net.Conn) {
 				continue
 			}
 
-			msgCharacter, ok := msg["character"].(uint32)
-			if !ok || msgCharacter >= CharacterMax {
+			msgCharacter, ok := msg["character"].(float64)
+			if !ok || (msgCharacter < 0 || msgCharacter >= CharacterMax) {
 				continue
 			}
 
@@ -200,13 +212,13 @@ func tcpHandler(c net.Conn) {
 				Id:         uuid.New().ID(),
 				Room:       room,
 				Name:       msgName,
-				Character:  msgCharacter,
+				Character:  uint32(msgCharacter),
 				Level:      msgLevel,
 				LastPacket: nil,
 				LastSeen:   time.Now(),
 			}
 
-			room.Clients = append(room.Clients)
+			room.Clients = append(room.Clients, client)
 			system.Unlock()
 
 			// Tell the client their UUID
@@ -240,7 +252,7 @@ func tcpHandler(c net.Conn) {
 
 			log.Printf("room \"%s\": \"%s\" joined\n", room.Name, client.Name)
 		case "name":
-			id, ok := msg["id"].(uint32)
+			id, ok := msg["id"].(float64)
 			if !ok {
 				continue
 			}
@@ -250,7 +262,7 @@ func tcpHandler(c net.Conn) {
 				continue
 			}
 
-			client := system.GetClientById(id)
+			client := system.GetClientById(uint32(id))
 			if client == nil {
 				continue
 			}
@@ -264,7 +276,7 @@ func tcpHandler(c net.Conn) {
 				"name": client.Name,
 			})
 		case "chat":
-			id, ok := msg["id"].(uint32)
+			id, ok := msg["id"].(float64)
 			if !ok {
 				continue
 			}
@@ -274,38 +286,58 @@ func tcpHandler(c net.Conn) {
 				continue
 			}
 
-			client := system.GetClientById(id)
+			client := system.GetClientById(uint32(id))
 			if client == nil {
 				continue
 			}
 
 			client.LastSeen = time.Now()
-			client.Room.SendMessage(map[string]interface{}{
+			client.Room.SendMessageExcept(client.Id, map[string]interface{}{
 				"type": "chat",
 				"body": body,
 			})
-		case "ping":
-			id, ok := msg["id"].(uint32)
+		case "level":
+			id, ok := msg["id"].(float64)
 			if !ok {
 				continue
 			}
 
-			client := system.GetClientById(id)
+			level, ok := msg["level"].(string)
+			if !ok {
+				continue
+			}
+
+			client := system.GetClientById(uint32(id))
+			if client == nil {
+				continue
+			}
+
+			client.Level = level
+			client.LastSeen = time.Now()
+			client.Room.SendMessageExcept(client.Id, map[string]interface{}{
+				"type":  "level",
+				"id":    client.Id,
+				"level": client.Level,
+			})
+		case "pong":
+			id, ok := msg["id"].(float64)
+			if !ok {
+				continue
+			}
+
+			client := system.GetClientById(uint32(id))
 			if client == nil {
 				continue
 			}
 
 			client.LastSeen = time.Now()
-			client.SendMessage(map[string]interface{}{
-				"type": "pong",
-			})
 		case "disconnect":
-			id, ok := msg["id"].(uint32)
+			id, ok := msg["id"].(float64)
 			if !ok {
 				continue
 			}
 
-			client := system.GetClientById(id)
+			client := system.GetClientById(uint32(id))
 			if client == nil {
 				continue
 			}
@@ -383,10 +415,12 @@ func udpListener() {
 		client.LastSeen = time.Now()
 
 		// Respond with the last packet of every other client in the same room and level
+		system.RLock()
 		for _, c := range client.Room.Clients {
 			if c.Id != client.Id && c.LastPacket != nil && c.Level == client.Level {
-				server.WriteTo(c.LastPacket, addr)
+				go server.WriteTo(c.LastPacket, addr)
 			}
 		}
+		system.RUnlock()
 	}
 }
