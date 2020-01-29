@@ -14,8 +14,7 @@ import (
 
 const (
 	Port           = "5222"
-	BoneSize       = 32
-	BoneCount      = 108
+	PacketSize     = 676
 	CharacterFaith = iota
 	CharacterKate
 	CharacterCeleste
@@ -29,10 +28,7 @@ const (
 )
 
 type Packet struct {
-	Id       uint32
-	Position [3]float32
-	Rotation [3]int32
-	Bones    [BoneSize * BoneCount]float32
+	Id uint32
 }
 
 type Client struct {
@@ -52,7 +48,7 @@ func (client *Client) SendMessage(msg interface{}) {
 		return
 	}
 
-	go client.Tcp.Write(r)
+	client.Tcp.Write(r)
 }
 
 type Room struct {
@@ -129,15 +125,13 @@ func main() {
 						"id":   c.Id,
 					})
 
-					log.Printf("timed out %d \"%s\"\n", c.Id, c.Name)
+					log.Printf("timed out %x \"%s\"\n", c.Id, c.Name)
 				}
 			}
 
 			if len(newClients) > 0 {
-				newRooms[name] = &Room{
-					Name:    name,
-					Clients: newClients,
-				}
+				r.Clients = newClients
+				newRooms[name] = r
 			} else {
 				log.Printf("deleted room \"%s\"\n", name)
 			}
@@ -240,8 +234,9 @@ func tcpHandler(c net.Conn) {
 			system.RLock()
 			for _, c := range room.Clients {
 				if c.Id != client.Id {
-					client.SendMessage(map[string]interface{}{
+					go client.SendMessage(map[string]interface{}{
 						"type":      "connect",
+						"id":        c.Id,
 						"name":      c.Name,
 						"character": c.Character,
 						"level":     c.Level,
@@ -292,9 +287,9 @@ func tcpHandler(c net.Conn) {
 			}
 
 			client.LastSeen = time.Now()
-			client.Room.SendMessageExcept(client.Id, map[string]interface{}{
+			client.Room.SendMessage(map[string]interface{}{
 				"type": "chat",
-				"body": body,
+				"body": client.Name + ": " + body,
 			})
 		case "level":
 			id, ok := msg["id"].(float64)
@@ -402,7 +397,7 @@ func udpListener() {
 			continue
 		}
 
-		if n != int(unsafe.Sizeof(Packet{})) {
+		if n != PacketSize {
 			continue
 		}
 
@@ -411,14 +406,14 @@ func udpListener() {
 			continue
 		}
 
-		client.LastPacket = buf
+		client.LastPacket = buf[:PacketSize]
 		client.LastSeen = time.Now()
 
 		// Respond with the last packet of every other client in the same room and level
 		system.RLock()
 		for _, c := range client.Room.Clients {
 			if c.Id != client.Id && c.LastPacket != nil && c.Level == client.Level {
-				go server.WriteTo(c.LastPacket, addr)
+				server.WriteTo(c.LastPacket, addr)
 			}
 		}
 		system.RUnlock()
