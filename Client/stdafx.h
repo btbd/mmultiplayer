@@ -1,6 +1,7 @@
 #pragma once
 
 #define _CRT_SECURE_NO_WARNINGS
+#define LENGTH(a) (sizeof(a) / sizeof(a[0]))
 
 #include <stdio.h>
 #include <WinSock2.h>
