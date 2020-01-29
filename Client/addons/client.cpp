@@ -13,13 +13,13 @@ static Client::Player client = {
 };
 
 static struct {
-	std::vector<Client::Player> List;
+	std::vector<Client::Player *> List;
 	std::shared_mutex Mutex;
 } players;
 
 static Client::Player *GetPlayerById(unsigned int id) {
 	for (auto i = 0UL; i < players.List.size(); ++i) {
-		auto p = &players.List[i];
+		auto p = players.List[i];
 		if (p->Id == id) {
 			return p;
 		}
@@ -79,47 +79,31 @@ static void Disconnect() {
 }
 
 static void PlayerHandler() {
-	std::thread receiver([]() {
-		for (;;) {
-			Client::PACKET packet;
+	while (connected) {
+		Client::PACKET_COMPRESSED packet;
 
-			int serverSize = sizeof(server);
-			if (recvfrom(udpSocket, reinterpret_cast<char *>(&packet), sizeof(packet), 0, reinterpret_cast<sockaddr *>(&server), &serverSize) < 0) {
-				return;
-			}
-
-			players.Mutex.lock_shared();
-
-			auto player = GetPlayerById(packet.Id);
-			if (player) {
-				player->LastPacket = packet;
-			}
-
-			players.Mutex.unlock_shared();
+		int serverSize = sizeof(server);
+		if (recvfrom(udpSocket, reinterpret_cast<char *>(&packet), sizeof(packet), 0, reinterpret_cast<sockaddr *>(&server), &serverSize) < 0) {
+			continue;
 		}
-	});
 
-	for (;;) {
-		if (!loading) {
-			auto pawn = Engine::GetPlayerPawn();
-			if (pawn) {
-				Client::PACKET packet;
-				packet.Id = client.Id;
-				packet.Position = pawn->Location;
-				packet.Rotation = pawn->Rotation;
-				memcpy(packet.Bones, pawn->Mesh3p->LocalAtoms.Buffer(), PLAYER_PAWN_BONE_COUNT * sizeof(Classes::FBoneAtom));
+		players.Mutex.lock_shared();
 
-				if (sendto(udpSocket, reinterpret_cast<const char *>(&packet), sizeof(packet), 0, reinterpret_cast<const sockaddr *>(&server), sizeof(server)) < 0) {
-					break;
+		auto player = GetPlayerById(packet.Id);
+		if (player) {
+			auto defaultPlayer = Engine::GetPlayerPawn();
+			if (defaultPlayer) {
+				memcpy(&player->LastPacket, &packet, FIELD_OFFSET(Client::PACKET_COMPRESSED, CompressedBones));
+				memcpy(player->LastPacket.Bones, defaultPlayer->Mesh3p->LocalAtoms.Buffer(), PLAYER_PAWN_BONE_COUNT * sizeof(Classes::FBoneAtom));
+
+				auto bonesBase = reinterpret_cast<byte *>(player->LastPacket.Bones);
+				for (auto i = 0; i < LENGTH(CompressedBoneOffsets); ++i) {
+					*reinterpret_cast<float *>(bonesBase + CompressedBoneOffsets[i]) = static_cast<float>(packet.CompressedBones[i]) / 215;
 				}
 			}
 		}
 
-		Sleep(17);
-	}
-
-	if (receiver.joinable()) {
-		receiver.join();
+		players.Mutex.unlock_shared();
 	}
 }
 
@@ -129,16 +113,25 @@ static bool RecvJsonMessage(json &msg) {
 		return false;
 	}
 
+	printf("%s\n", buffer);
+
 	msg = json::parse(buffer);
+
 	return true;
 }
 
 static bool SendJsonMessage(json msg) {
+	static std::mutex sendMutex;
+
 	auto data = msg.dump();
+
+	sendMutex.lock();
 	if (send(tcpSocket, data.c_str(), data.length(), 0) != data.length()) {
+		sendMutex.unlock();
 		return false;
 	}
 
+	sendMutex.unlock();
 	return true;
 }
 
@@ -181,8 +174,8 @@ static bool Join() {
 	return true;
 }
 
-static void AddChatMessage(Client::Player *player, std::string message) {
-	chat += player->Name + ": " + message + "\n";
+static void AddChatMessage(std::string message) {
+	chat += message + "\n";
 }
 
 static void ClientListener() {
@@ -219,6 +212,7 @@ static void ClientListener() {
 		}
 
 		connected = true;
+
 		std::thread playerHandlerThread(PlayerHandler);
 
 		auto lastPing = GetTickCount64();
@@ -253,17 +247,17 @@ static void ClientListener() {
 
 				players.Mutex.lock();
 
-				Client::Player player;
-				player.Id = msgId;
-				player.Name = msgName.get<std::string>();
-				player.Character = msgCharacter;
-				player.Level = msgLevel.get<std::string>();
-				if (player.Level == client.Level) {
-					if (!loading) {
-						Engine::SpawnCharacter(player.Character, player.Pawn);
-					}
+				auto player = new Client::Player();
+				player->Id = msgId;
+				player->Name = msgName.get<std::string>();
+				player->Character = msgCharacter;
+				player->Level = msgLevel.get<std::string>();
+				player->LastPacket = { 0 };
+
+				if (player->Level == client.Level && !loading) {
+					Engine::SpawnCharacter(player->Character, player->Pawn);
 				} else {
-					player.Pawn = nullptr;
+					player->Pawn = nullptr;
 				}
 
 				players.List.push_back(player);
@@ -285,20 +279,13 @@ static void ClientListener() {
 
 				players.Mutex.unlock_shared();
 			} else if (msgType == "chat") {
-				auto msgId = msg["id"];
-				auto msgBody = msg["name"];
-
-				if (!msgId.is_number_integer() || !msgBody.is_string()) {
+				auto msgBody = msg["body"];
+				if (!msgBody.is_string()) {
 					continue;
 				}
 
 				players.Mutex.lock_shared();
-
-				auto player = GetPlayerById(msgId);
-				if (player) {
-					AddChatMessage(player, msgBody.get<std::string>());
-				}
-
+				AddChatMessage(msgBody.get<std::string>());
 				players.Mutex.unlock_shared();
 			} else if (msgType == "level") {
 				auto msgId = msg["id"];
@@ -341,16 +328,17 @@ static void ClientListener() {
 				}
 
 				players.Mutex.lock();
-				players.List.erase(std::remove_if(players.List.begin(), players.List.end(), [&msgId](Client::Player &p) {
-					if (p.Id != msgId) {
+				players.List.erase(std::remove_if(players.List.begin(), players.List.end(), [&msgId](Client::Player *p) {
+					if (p->Id != msgId) {
 						return false;
 					}
 
-					if (p.Pawn) {
-						Engine::Despawn(p.Pawn);
-						p.Pawn = nullptr;
+					if (p->Pawn) {
+						Engine::Despawn(p->Pawn);
+						p->Pawn = nullptr;
 					}
 
+					delete p;
 					return true;
 				}));
 				players.Mutex.unlock();
@@ -369,15 +357,48 @@ static void ClientListener() {
 	}
 }
 
+static void OnTick(float delta) {
+	static float sum = 0;
+	sum += delta;
+
+	if (!loading && connected && sum > 0.016f) {
+		auto pawn = Engine::GetPlayerPawn();
+		if (pawn) {
+			Client::PACKET_COMPRESSED packet;
+			packet.Id = client.Id;
+			packet.Position = pawn->Location;
+			packet.Yaw = pawn->Rotation.Yaw % 0x10000;
+
+			auto bonesBase = reinterpret_cast<byte *>(pawn->Mesh3p->LocalAtoms.Buffer());
+			for (auto i = 0; i < LENGTH(CompressedBoneOffsets); ++i) {
+				packet.CompressedBones[i] = static_cast<short>(*reinterpret_cast<float *>(bonesBase + CompressedBoneOffsets[i]) * 215);
+			}
+
+			sendto(udpSocket, reinterpret_cast<const char *>(&packet), sizeof(packet), 0, reinterpret_cast<const sockaddr *>(&server), sizeof(server));
+		}
+
+		sum = 0;
+	}
+
+	players.Mutex.lock_shared();
+
+	for (auto &p : players.List) {
+		if (p->Pawn && p->Id == p->LastPacket.Id) {
+			p->Pawn->Location = p->LastPacket.Position;
+			p->Pawn->Rotation.Yaw = p->LastPacket.Yaw;
+			p->Pawn->Mesh3p->bNeedsUpdateTransform = true;
+		}
+	}
+
+	players.Mutex.unlock_shared();
+}
+
 static void OnBonesTick(Classes::TArray<Classes::FBoneAtom> *bones) {
 	players.Mutex.lock_shared();
 
 	for (auto &p : players.List) {
-		if (p.Pawn && &p.Pawn->Mesh3p->LocalAtoms == bones && p.Id == p.LastPacket.Id) {
-			p.Pawn->Location = p.LastPacket.Position;
-			p.Pawn->Rotation = p.LastPacket.Rotation;
-			Engine::TransformBones(p.Character, bones, p.LastPacket.Bones);
-			p.Pawn->Mesh3p->bNeedsUpdateTransform = true;
+		if (p->Pawn && &p->Pawn->Mesh3p->LocalAtoms == bones && p->Id == p->LastPacket.Id) {
+			Engine::TransformBones(p->Character, bones, p->LastPacket.Bones);
 		}
 	}
 
@@ -420,7 +441,6 @@ static void MultiplayerTab() {
 			{ "body", chatInput },
 		});
 
-		AddChatMessage(&client, std::string(chatInput));
 		chatInput[0] = 0;
 	}
 }
@@ -428,29 +448,40 @@ static void MultiplayerTab() {
 bool Client::Initialize() {
 	Menu::AddTab("Multiplayer", MultiplayerTab);
 	Engine::OnBonesTick(OnBonesTick);
+	Engine::OnTick(OnTick);
 
 	Engine::OnPreLevelLoad([](const wchar_t *levelName) {
 		players.Mutex.lock();
 		loading = true;
 
 		for (auto &p : players.List) {
-			p.Pawn = nullptr;
+			p->Pawn = nullptr;
 		}
 
 		players.Mutex.unlock();
 	});
 
-	Engine::OnPostLevelLoad([](const wchar_t *levelName) {
+	Engine::OnPostLevelLoad([](const wchar_t *levelNameW) {
+		auto levelName = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(levelNameW);
+
 		players.Mutex.lock();
 
 		for (auto &p : players.List) {
-			if (!p.Pawn && p.Level == std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(levelName)) {
-				Engine::SpawnCharacter(p.Character, p.Pawn);
+			if (!p->Pawn && p->Level == levelName) {
+				Engine::SpawnCharacter(p->Character, p->Pawn);
 			}
 		}
 
 		loading = false;
 		players.Mutex.unlock();
+
+		if (connected) {
+			SendJsonMessage({
+				{ "type", "level" },
+				{ "id", client.Id },
+				{ "level", levelName },
+			});
+		}
 	});
 
 	std::thread(ClientListener).detach();

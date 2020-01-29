@@ -183,6 +183,7 @@ static void DollyTab() {
 
 	static auto selectedCharacter = Engine::Characters[0];
 	ImGui::SameLine();
+	ImGui::PushItemWidth(200);
 	if (ImGui::BeginCombo("##dolly-character", selectedCharacter)) {
 		for (auto i = 0; i < IM_ARRAYSIZE(Engine::Characters); ++i) {
 			auto c = Engine::Characters[i];
@@ -199,6 +200,7 @@ static void DollyTab() {
 
 		ImGui::EndCombo();
 	}
+	ImGui::PopItemWidth();
 
 	ImGui::InputInt("Frame##dolly", &frame);
 	if (markers.size() == 0 && recordings.size() == 0) {
@@ -384,22 +386,27 @@ static void OnTick(float) {
 
 			currentRecording.Frames.push_back(f);
 		}
+
+		for (auto &r : recordings) {
+			if (r.Pawn) {
+				if (frame >= r.StartFrame && frame < r.StartFrame + static_cast<int>(r.Frames.size())) {
+					auto &f = r.Frames[frame - r.StartFrame];
+					r.Pawn->Location = f.Position;
+					r.Pawn->Rotation = f.Rotation;
+				} else {
+					r.Pawn->Location = { 0 };
+				}
+
+				r.Pawn->Mesh3p->bNeedsUpdateTransform = true;
+			}
+		}
 	}
 }
 
 static void OnBonesTick(Classes::TArray<Classes::FBoneAtom> *bones) {
 	for (auto &r : recordings) {
-		if (r.Pawn && &r.Pawn->Mesh3p->LocalAtoms == bones) {
-			if (frame >= r.StartFrame && frame < r.StartFrame + static_cast<int>(r.Frames.size())) {
-				auto &f = r.Frames[frame - r.StartFrame];
-				r.Pawn->Location = f.Position;
-				r.Pawn->Rotation = f.Rotation;
-				Engine::TransformBones(r.Character, bones, r.Frames[frame - r.StartFrame].Bones);
-			} else {
-				r.Pawn->Location = { 0 };
-			}
-
-			r.Pawn->Mesh3p->bNeedsUpdateTransform = true;
+		if (r.Pawn && &r.Pawn->Mesh3p->LocalAtoms == bones && frame >= r.StartFrame && frame < r.StartFrame + static_cast<int>(r.Frames.size())) {
+			Engine::TransformBones(r.Character, bones, r.Frames[frame - r.StartFrame].Bones);
 		}
 	}
 }
