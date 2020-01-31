@@ -38,10 +38,18 @@ static struct {
 } processEvent;
 
 static struct {
+	bool Loading = false;
 	std::vector<LevelLoadCallback> PreCallbacks;
 	std::vector<LevelLoadCallback> PostCallbacks;
 	int(__thiscall *Original)(void *, void *, unsigned long long arg);
 } levelLoad;
+
+static struct {
+	std::vector<DeathCallback> PreCallbacks;
+	std::vector<DeathCallback> PostCallbacks;
+	int(*PreOriginal)();
+	int(*PostOriginal)();
+} death;
 
 static struct {
 	std::vector<ActorTickCallback> Callbacks;
@@ -114,11 +122,13 @@ void HandleMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (wParam < sizeof(window.KeysDown)) {
 				auto k = &window.KeysDown[wParam];
 				if (!*k) {
+					auto block = window.BlockInput;
+
 					for (auto callback : window.SuperInputCallbacks) {
 						callback(msg, wParam);
 					}
 
-					if (!window.BlockInput) {
+					if (!block) {
 						for (auto callback : window.InputCallbacks) {
 							callback(msg, wParam);
 						}
@@ -133,11 +143,13 @@ void HandleMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (wParam < sizeof(window.KeysDown)) {
 				auto k = &window.KeysDown[wParam];
 				if (*k) {
+					auto block = window.BlockInput;
+
 					for (auto callback : window.SuperInputCallbacks) {
 						callback(msg, wParam);
 					}
 
-					if (!window.BlockInput) {
+					if (!block) {
 						for (auto callback : window.InputCallbacks) {
 							callback(msg, wParam);
 						}
@@ -152,12 +164,12 @@ void HandleMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 }
 
 LRESULT CALLBACK WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-	HandleMessage(hWnd, msg, wParam, lParam);
-
 	if (window.BlockInput && ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam)) {
+		HandleMessage(hWnd, msg, wParam, lParam);
 		return true;
 	}
 
+	HandleMessage(hWnd, msg, wParam, lParam);
 	return CallWindowProc(window.WndProc, hWnd, msg, wParam, lParam);
 }
 
@@ -165,14 +177,15 @@ BOOL WINAPI PeekMessageHook(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMs
 	auto ret = window.PeekMessage(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);
 
 	if (lpMsg && (wRemoveMsg & PM_REMOVE)) {
-		HandleMessage(lpMsg->hwnd, lpMsg->message, lpMsg->wParam, lpMsg->lParam);
-
 		if (window.BlockInput) {
 			ImGui_ImplWin32_WndProcHandler(lpMsg->hwnd, lpMsg->message, lpMsg->wParam, lpMsg->lParam);
 
+			HandleMessage(lpMsg->hwnd, lpMsg->message, lpMsg->wParam, lpMsg->lParam);
 			TranslateMessage(lpMsg);
 
 			lpMsg->message = WM_NULL;
+		} else {
+			HandleMessage(lpMsg->hwnd, lpMsg->message, lpMsg->wParam, lpMsg->lParam);
 		}
 	}
 
@@ -196,10 +209,30 @@ int __fastcall LevelLoadHook(void *this_, void *idle_, void **levelInfo, unsigne
 		callback(levelName);
 	}
 	
+	levelLoad.Loading = true;
 	auto ret = levelLoad.Original(this_, levelInfo, arg);
+	levelLoad.Loading = false;
 
 	for (auto callback : levelLoad.PostCallbacks) {
 		callback(levelName);
+	}
+
+	return ret;
+}
+
+int PreDeathHook() {
+	for (auto callback : death.PreCallbacks) {
+		callback();
+	}
+
+	return death.PreOriginal();
+}
+
+int PostDeathHook() {
+	auto ret = death.PostOriginal();
+
+	for (auto callback : death.PostCallbacks) {
+		callback();
 	}
 
 	return ret;
@@ -339,37 +372,37 @@ Classes::ATdPlayerPawn *SpawnCharacter(Engine::Character character) {
 }
 
 void __fastcall TickHook(float *scales, void *idle, int arg, float delta) {
-	Engine::GetPlayerPawn(true);
+	if (Engine::GetPlayerPawn(true)) {
+		// Queues must be executed inside the context of an engine thread
+		if (commands.Queue.size() > 0) {
+			auto console = Engine::GetConsole();
 
-	// Queues must be executed inside the context of an engine thread
-	if (commands.Queue.size() > 0) {
-		auto console = Engine::GetConsole();
+			if (console) {
+				commands.Mutex.lock();
 
-		if (console) {
-			commands.Mutex.lock();
+				for (auto &command : commands.Queue) {
+					console->ConsoleCommand(command.c_str());
+				}
 
-			for (auto &command : commands.Queue) {
-				console->ConsoleCommand(command.c_str());
+				commands.Queue.clear();
+				commands.Queue.shrink_to_fit();
+
+				commands.Mutex.unlock();
+			}
+		}
+
+		if (spawns.Queue.size() > 0) {
+			spawns.Mutex.lock();
+
+			for (auto &spawn : spawns.Queue) {
+				spawn.second = SpawnCharacter(spawn.first);
 			}
 
-			commands.Queue.clear();
-			commands.Queue.shrink_to_fit();
+			spawns.Queue.clear();
+			spawns.Queue.shrink_to_fit();
 
-			commands.Mutex.unlock();
+			spawns.Mutex.unlock();
 		}
-	}
-
-	if (spawns.Queue.size() > 0) {
-		spawns.Mutex.lock();
-
-		for (auto &spawn : spawns.Queue) {
-			spawn.second = SpawnCharacter(spawn.first);
-		}
-
-		spawns.Queue.clear();
-		spawns.Queue.shrink_to_fit();
-
-		spawns.Mutex.unlock();
 	}
 
 	for (auto callback : tick.Callbacks) {
@@ -433,6 +466,10 @@ void Engine::ExecuteCommand(Classes::FString command) {
 Classes::AWorldInfo *Engine::GetWorld(bool update) {
 	static Classes::AWorldInfo *cache = nullptr;
 
+	if (levelLoad.Loading) {
+		return nullptr;
+	}
+
 	if (!cache || update) {
 		auto objects = Classes::UObject::GetGlobalObjects();
 		for (auto i = 0UL; i < objects.Num(); ++i) {
@@ -456,6 +493,10 @@ Classes::AWorldInfo *Engine::GetWorld(bool update) {
 Classes::ATdPlayerController *Engine::GetPlayerController(bool update) {
 	static Classes::ATdPlayerController *cache = nullptr;
 
+	if (levelLoad.Loading) {
+		return nullptr;
+	}
+
 	if (!cache || update) {
 		auto world = GetWorld(update);
 		if (world) {
@@ -473,6 +514,10 @@ Classes::ATdPlayerController *Engine::GetPlayerController(bool update) {
 
 Classes::ATdPlayerPawn *Engine::GetPlayerPawn(bool update) {
 	static Classes::ATdPlayerPawn *cache = nullptr;
+
+	if (levelLoad.Loading) {
+		return nullptr;
+	}
 
 	if (!cache || update) {
 		auto controller = GetPlayerController(update);
@@ -548,6 +593,31 @@ void Engine::TransformBones(Character character, Classes::TArray<Classes::FBoneA
 	}
 }
 
+// Define these to remove the D3DX dependency
+D3DXMATRIX *WINAPI D3DXMatrixMultiply(D3DXMATRIX *pOut, const D3DXMATRIX *pM1, const D3DXMATRIX *pM2) {
+	D3DXMATRIX out;
+
+	for (auto i = 0; i < 4; i++) {
+		for (auto j = 0; j < 4; j++) {
+			out.m[i][j] = pM1->m[i][0] * pM2->m[0][j] + pM1->m[i][1] * pM2->m[1][j] + pM1->m[i][2] * pM2->m[2][j] + pM1->m[i][3] * pM2->m[3][j];
+		}
+	}
+
+	*pOut = out;
+	return pOut;
+}
+
+D3DXVECTOR4 *WINAPI D3DXVec4Transform(D3DXVECTOR4 *pOut, const D3DXVECTOR4 *pV, const D3DXMATRIX *pM) {
+	*pOut = {
+		pM->m[0][0] * pV->x + pM->m[1][0] * pV->y + pM->m[2][0] * pV->z + pM->m[3][0] * pV->w,
+		pM->m[0][1] * pV->x + pM->m[1][1] * pV->y + pM->m[2][1] * pV->z + pM->m[3][1] * pV->w,
+		pM->m[0][2] * pV->x + pM->m[1][2] * pV->y + pM->m[2][2] * pV->z + pM->m[3][2] * pV->w,
+		pM->m[0][3] * pV->x + pM->m[1][3] * pV->y + pM->m[2][3] * pV->z + pM->m[3][3] * pV->w
+	};
+
+	return pOut;
+}
+
 bool Engine::WorldToScreen(IDirect3DDevice9 *device, Classes::FVector &inOutLocation) {
 	auto controller = Engine::GetPlayerController();
 	if (!controller || !projectionTick.Matrix) {
@@ -600,6 +670,14 @@ void Engine::OnPreLevelLoad(LevelLoadCallback callback) {
 
 void Engine::OnPostLevelLoad(LevelLoadCallback callback) {
 	levelLoad.PostCallbacks.push_back(callback);
+}
+
+void Engine::OnPreDeath(DeathCallback callback) {
+	death.PreCallbacks.push_back(callback);
+}
+
+void Engine::OnPostDeath(DeathCallback callback) {
+	death.PostCallbacks.push_back(callback);
 }
 
 void Engine::OnActorTick(ActorTickCallback callback) {
@@ -691,6 +769,33 @@ bool Engine::Initialize() {
 
 	if (!Hook::TrampolineHook(LevelLoadHook, ptr, reinterpret_cast<void **>(&levelLoad.Original))) {
 		MessageBoxA(0, "Failed to hook LevelLoad", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	// PreDeath
+	if (!(ptr = Pattern::FindPattern("\x8D\x4C\x24\x10\xE8\x00\x00\x00\x00\x8B\x4C\x24\x14\x85\xC9\x7C\x1E\x3B\xCF\x0F\x8D\x00\x00\x00\x00\x8B\x04\x8E\x8B\x40\x08\x25\x00\x00\x00\x00\x33\xD2\x0B\xC2\x75\xD6\xE9\x00\x00\x00\x00", "xxxxx????xxxxxxxxxxxx????xxxxxxx????xxxxxxx????"))) {
+		MessageBoxA(0, "Failed to find PreDeath (1)", "Failure", MB_ICONERROR);
+		return false;
+	}
+	
+	if (!(ptr = Pattern::FindPattern(ptr, 0x1000, "\xC7\x05\x00\x00\x00\x00\x00\x00\x00\x00\xB8\x00\x00\x00\x00\xC3\xB8\x00\x00\x00\x00\xC3", "xx????????x????xx????x"))) {
+		MessageBoxA(0, "Failed to find PreDeath (2)", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	if (!Hook::TrampolineHook(PreDeathHook, ptr, reinterpret_cast<void **>(&death.PreOriginal))) {
+		MessageBoxA(0, "Failed to hook PreDeath", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	// PostDeath
+	if (!(ptr = Pattern::FindPattern(ptr, 0x1000, "\x8B\x0D\x00\x00\x00\x00\xC7\x05\x00\x00\x00\x00\x00\x00\x00\x00\x8B\x01\x8B\x90\x00\x00\x00\x00\xFF\xD2\xB8\x00\x00\x00\x00\xC3\x8B\xC1\xC7\x00\x00\x00\x00\x00\xC3", "xx????xx????????xxxx????xxx????xxxxx????x"))) {
+		MessageBoxA(0, "Failed to hook PostDeath", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	if (!Hook::TrampolineHook(PostDeathHook, ptr, reinterpret_cast<void **>(&death.PostOriginal))) {
+		MessageBoxA(0, "Failed to hook PreDeath", "Failure", MB_ICONERROR);
 		return false;
 	}
 
