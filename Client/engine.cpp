@@ -38,10 +38,18 @@ static struct {
 } processEvent;
 
 static struct {
+	bool Loading = false;
 	std::vector<LevelLoadCallback> PreCallbacks;
 	std::vector<LevelLoadCallback> PostCallbacks;
 	int(__thiscall *Original)(void *, void *, unsigned long long arg);
 } levelLoad;
+
+static struct {
+	std::vector<DeathCallback> PreCallbacks;
+	std::vector<DeathCallback> PostCallbacks;
+	int(*PreOriginal)();
+	int(*PostOriginal)();
+} death;
 
 static struct {
 	std::vector<ActorTickCallback> Callbacks;
@@ -114,11 +122,13 @@ void HandleMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (wParam < sizeof(window.KeysDown)) {
 				auto k = &window.KeysDown[wParam];
 				if (!*k) {
+					auto block = window.BlockInput;
+
 					for (auto callback : window.SuperInputCallbacks) {
 						callback(msg, wParam);
 					}
 
-					if (!window.BlockInput) {
+					if (!block) {
 						for (auto callback : window.InputCallbacks) {
 							callback(msg, wParam);
 						}
@@ -133,11 +143,13 @@ void HandleMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 			if (wParam < sizeof(window.KeysDown)) {
 				auto k = &window.KeysDown[wParam];
 				if (*k) {
+					auto block = window.BlockInput;
+
 					for (auto callback : window.SuperInputCallbacks) {
 						callback(msg, wParam);
 					}
 
-					if (!window.BlockInput) {
+					if (!block) {
 						for (auto callback : window.InputCallbacks) {
 							callback(msg, wParam);
 						}
@@ -152,12 +164,12 @@ void HandleMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 }
 
 LRESULT CALLBACK WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-	HandleMessage(hWnd, msg, wParam, lParam);
-
 	if (window.BlockInput && ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam)) {
+		HandleMessage(hWnd, msg, wParam, lParam);
 		return true;
 	}
 
+	HandleMessage(hWnd, msg, wParam, lParam);
 	return CallWindowProc(window.WndProc, hWnd, msg, wParam, lParam);
 }
 
@@ -165,14 +177,15 @@ BOOL WINAPI PeekMessageHook(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMs
 	auto ret = window.PeekMessage(lpMsg, hWnd, wMsgFilterMin, wMsgFilterMax, wRemoveMsg);
 
 	if (lpMsg && (wRemoveMsg & PM_REMOVE)) {
-		HandleMessage(lpMsg->hwnd, lpMsg->message, lpMsg->wParam, lpMsg->lParam);
-
 		if (window.BlockInput) {
 			ImGui_ImplWin32_WndProcHandler(lpMsg->hwnd, lpMsg->message, lpMsg->wParam, lpMsg->lParam);
 
+			HandleMessage(lpMsg->hwnd, lpMsg->message, lpMsg->wParam, lpMsg->lParam);
 			TranslateMessage(lpMsg);
 
 			lpMsg->message = WM_NULL;
+		} else {
+			HandleMessage(lpMsg->hwnd, lpMsg->message, lpMsg->wParam, lpMsg->lParam);
 		}
 	}
 
@@ -196,10 +209,30 @@ int __fastcall LevelLoadHook(void *this_, void *idle_, void **levelInfo, unsigne
 		callback(levelName);
 	}
 	
+	levelLoad.Loading = true;
 	auto ret = levelLoad.Original(this_, levelInfo, arg);
+	levelLoad.Loading = false;
 
 	for (auto callback : levelLoad.PostCallbacks) {
 		callback(levelName);
+	}
+
+	return ret;
+}
+
+int PreDeathHook() {
+	for (auto callback : death.PreCallbacks) {
+		callback();
+	}
+
+	return death.PreOriginal();
+}
+
+int PostDeathHook() {
+	auto ret = death.PostOriginal();
+
+	for (auto callback : death.PostCallbacks) {
+		callback();
 	}
 
 	return ret;
@@ -339,42 +372,732 @@ Classes::ATdPlayerPawn *SpawnCharacter(Engine::Character character) {
 }
 
 void __fastcall TickHook(float *scales, void *idle, int arg, float delta) {
-	Engine::GetPlayerPawn(true);
+	if (Engine::GetPlayerPawn(true)) {
+		// Queues must be executed inside the context of an engine thread
+		if (commands.Queue.size() > 0) {
+			auto console = Engine::GetConsole();
 
-	// Queues must be executed inside the context of an engine thread
-	if (commands.Queue.size() > 0) {
-		auto console = Engine::GetConsole();
+			if (console) {
+				commands.Mutex.lock();
 
-		if (console) {
-			commands.Mutex.lock();
+				for (auto &command : commands.Queue) {
+					console->ConsoleCommand(command.c_str());
+				}
 
-			for (auto &command : commands.Queue) {
-				console->ConsoleCommand(command.c_str());
+				commands.Queue.clear();
+				commands.Queue.shrink_to_fit();
+
+				commands.Mutex.unlock();
+			}
+		}
+
+		if (spawns.Queue.size() > 0) {
+			spawns.Mutex.lock();
+
+			for (auto &spawn : spawns.Queue) {
+				spawn.second = SpawnCharacter(spawn.first);
 			}
 
-			commands.Queue.clear();
-			commands.Queue.shrink_to_fit();
+			spawns.Queue.clear();
+			spawns.Queue.shrink_to_fit();
 
-			commands.Mutex.unlock();
+			spawns.Mutex.unlock();
 		}
-	}
-
-	if (spawns.Queue.size() > 0) {
-		spawns.Mutex.lock();
-
-		for (auto &spawn : spawns.Queue) {
-			spawn.second = SpawnCharacter(spawn.first);
-		}
-
-		spawns.Queue.clear();
-		spawns.Queue.shrink_to_fit();
-
-		spawns.Mutex.unlock();
 	}
 
 	for (auto callback : tick.Callbacks) {
 		callback(delta);
 	}
+
+#if 0
+	{
+		static struct {
+			// AActor
+			Classes::FQWord ObjectFlags;
+
+			unsigned long BitField0; // 0x3C
+			unsigned long BitField1; // 0x40
+			unsigned long BitField2; // 0x44
+
+			Classes::TEnumAsByte<Classes::EPhysics> Physics;
+			Classes::TEnumAsByte<Classes::ECollisionType> CollisionType;
+			// Base
+			Classes::FVector Location;
+			Classes::FRotator Rotation;
+			Classes::FVector Velocity;
+			Classes::FVector Acceleration;
+			Classes::FVector AngularVelocity;
+			Classes::FVector RelativeLocation;
+			Classes::FRotator RelativeRotation;
+			Classes::FRotator DesiredRotation;
+
+			// APawn
+			unsigned long BitField3; // 0x1E0
+			unsigned long BitField4; // 0x1E4
+			Classes::TEnumAsByte<Classes::EPathSearchType> PathSearchType;
+			unsigned char RemoteViewPitch;
+			unsigned char FlashCount;
+			unsigned char FiringMode;
+			Classes::FVector Floor;
+			float OldZ;
+			Classes::FVector RMVelocity;
+			int Health;
+
+			// ATdPawn
+			unsigned long BitField5; // 0x41C
+			float VelocityMagnitude2D;
+			float VelocityMagnitude;
+			Classes::FVector VelocityDir2D;
+			Classes::FVector VelocityDir;
+			float FaceRotationTimeLeft;
+			float AmountTilUnarmed;
+			Classes::TEnumAsByte<Classes::EAgainstWallState> AgainstWallState;
+			Classes::TEnumAsByte<Classes::EWeaponAnimState> WeaponAnimState;
+			Classes::TEnumAsByte<Classes::EGrabTurnType> CurrentGrabTurnType;
+			unsigned char LadderType;
+			Classes::TEnumAsByte<Classes::EMovement> AnimationMovementState;
+			Classes::TEnumAsByte<Classes::EMovement> PendingAnimationMovementState;
+			Classes::TEnumAsByte<Classes::EMovement> OldMovementState;
+			Classes::TEnumAsByte<Classes::EMovement> PendingMovementState;
+			Classes::TEnumAsByte<Classes::EMovement> MovementState;
+			Classes::TEnumAsByte<Classes::EMovement> ReplicatedMovementState;
+			Classes::TEnumAsByte<Classes::EMovement> AIAimOldMovementState;
+			Classes::TEnumAsByte<Classes::EWalkingState> OverrideWalkingState;
+			Classes::TEnumAsByte<Classes::EWalkingState> PendingOverrideWalkingState;
+			Classes::TEnumAsByte<Classes::EWalkingState> CurrentWalkingState;
+			unsigned char ReplicateCustomAnimCount;
+			Classes::TEnumAsByte<Classes::EMoveActionHint> MoveActionHint;
+			unsigned char ReloadCount;
+			unsigned char NoOfBreathingSounds;
+			Classes::FVector AgainstWallLeftHand;
+			Classes::FVector AgainstWallRightHand;
+			Classes::FVector AgainstWallNormal;
+			Classes::FRotator MinLookConstraint;
+			Classes::FRotator MaxLookConstraint;
+			float LegRotationSlowTimer;
+			int LegRotation;
+			float ASPollTimer;
+			int ASSlotPointer;
+			float ASDistanceAccum;
+			float NewFloorSmooth;
+			float SmoothOffset;
+			float TargetMeshTranslationZ;
+			Classes::FVector MoveLocation;
+			Classes::FVector MoveNormal;
+			// MovementActor
+			Classes::FVector MoveLedgeLocation;
+			Classes::FVector MoveLedgeNormal;
+			int MoveLedgeResult;
+			int RemoteViewYaw;
+			float SpeedSprintEnergy;
+			float RollTriggerTime;
+			float FallingUncontrolledHeight;
+			float EnterFallingHeight;
+			float SlideEffectUpdateTimer;
+			Classes::FVector LastJumpLocation;
+
+			// ATdPlayerPawn
+			unsigned long BitField6;
+			float MovementStringGapTimer;
+			Classes::FVector PlayerCameraLocation;
+			Classes::FRotator PlayerCameraRotation;
+		} data = { 0 };
+
+		static struct {
+			// AActor
+			unsigned long BitField0; // 0x3C
+			unsigned long BitField1; // 0x40
+			unsigned long BitField2; // 0x44
+
+			Classes::TEnumAsByte<Classes::EPhysics> Physics;
+			Classes::TEnumAsByte<Classes::ECollisionType> CollisionType;
+			// Base
+			Classes::FVector Location;
+			Classes::FRotator Rotation;
+			Classes::FVector Velocity;
+			Classes::FVector Acceleration;
+			Classes::FVector AngularVelocity;
+			Classes::FVector RelativeLocation;
+			Classes::FRotator RelativeRotation;
+			Classes::FRotator DesiredRotation;
+
+			unsigned long BitField3; // 0x1D0
+			float MinHitWall;
+			float MoveTimer;
+			Classes::FVector Destination;
+			Classes::FVector FocalPoint;
+			Classes::FVector AdjustLoc;
+			Classes::FVector CurrentPathDir;
+			float GroundPitchTime;
+			Classes::FVector ViewX;
+			Classes::FVector ViewY;
+			Classes::FVector ViewZ;
+			float FailedReachTime;
+			Classes::FVector FailedReachLocation;
+			float SightCounter;
+			float RespawnPredictionTime;
+			float InUseNodeCostMultiplier;
+			int HighJumpNodeCostModifier;
+			float LaneOffset;
+			Classes::FRotator OldBasedRotation;
+			int currentLaneSlot;
+			int pathMatesCount;
+
+			// APlayerController
+			unsigned long BitField4; // 0x2EC
+			float MaxResponseTime;
+			float WaitDelay;
+			Classes::TEnumAsByte<Classes::EDoubleClickDir> DoubleClickDir;
+			unsigned char bIgnoreMoveInput;
+			unsigned char bIgnoreLookInput;
+			unsigned char bRun;
+			unsigned char bDuck;
+			unsigned long BitField5; // 0x300
+			float FOVAngle;
+			float DesiredFOV;
+			float DefaultFOV;
+			Classes::FRotator TargetViewRotation;
+			float TargetEyeHeight;
+			Classes::FRotator BlendedTargetViewRotation;
+			Classes::FVector LastAckedAccel;
+			float CurrentTimeStamp;
+			float LastUpdateTime;
+			int GroundPitch;
+			Classes::FVector OldFloor;
+
+			// ATdPlayerController
+			unsigned long BitField6; // 0x52C
+			float TargetingPawnInterp;
+			float TargetingCutoffAngle;
+			Classes::FVector TargetActorLocation;
+			float LookAtTimeDelay;
+			Classes::TEnumAsByte<Classes::EMovementAction> MeleeLastAction;
+			unsigned char bIgnoreButtonInput;
+			Classes::TEnumAsByte<Classes::EWalkingState> CachedWalkingState;
+			float WallRunningAlignTime;
+			int WallRunningAlignYaw;
+			float ReactionTimeEnergy;
+			float WallClimbingDodgeJumpThreshold;
+			float WallRunningDodgeJumpThreshold;
+			float WalkCyclePart1;
+			float WalkCyclePart2;
+			float AccelerationTime;
+			Classes::FRotator VehicleRotation;
+			Classes::FRotator DriverRotation;
+			float StickySpeed;
+			float FOVZoomRate;
+			float FOVZoomDelay;
+			float MouseX;
+			float MouseY;
+			float ActualAccelX;
+			float ActualAccelY;
+			float ActualAccelZ;
+			float SixAxisDisarmZ;
+			float SixAxisDisarmY;
+			float SixAxisRollZ;
+			float SixAxisRollY;
+			float DisarmTimeMultiplier;
+			float LastZAxisTilt;
+			float LastYAxisTilt;
+		} dataController = { 0 };
+
+		struct {
+			DWORD offset0 = 0x18C;
+			char buffer0[0x224 - 0x18C];
+		} dataWallrunOffsets;
+
+		auto pawn = Engine::GetPlayerPawn();
+		if (pawn) {
+			auto controller = Engine::GetPlayerController();
+
+			if (GetAsyncKeyState(0x34) < 0) {
+				data.ObjectFlags = pawn->ObjectFlags;
+				data.BitField0 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x3C);
+				data.BitField1 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x40);
+				data.BitField2 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x44);
+				data.Physics = pawn->Physics;
+				data.CollisionType = pawn->CollisionType;
+				data.Location = pawn->Location;
+				data.Rotation = pawn->Rotation;
+				data.Velocity = pawn->Velocity;
+				data.Acceleration = pawn->Acceleration;
+				data.AngularVelocity = pawn->AngularVelocity;
+				data.RelativeLocation = pawn->RelativeLocation;
+				data.RelativeRotation = pawn->RelativeRotation;
+				data.DesiredRotation = pawn->DesiredRotation;
+
+				data.BitField3 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x1E0);
+				data.BitField4 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x1E4);
+				data.PathSearchType = pawn->PathSearchType;
+				data.RemoteViewPitch = pawn->RemoteViewPitch;
+				data.FlashCount = pawn->FlashCount;
+				data.FiringMode = pawn->FiringMode;
+				data.Floor = pawn->Floor;
+				data.OldZ = pawn->OldZ;
+				data.RMVelocity = pawn->RMVelocity;
+				data.Health = pawn->Health;
+
+				data.BitField5 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x41C);
+				data.VelocityMagnitude2D = pawn->VelocityMagnitude2D;
+				data.VelocityMagnitude = pawn->VelocityMagnitude;
+				data.VelocityDir2D = pawn->VelocityDir2D;
+				data.VelocityDir = pawn->VelocityDir;
+				data.FaceRotationTimeLeft = pawn->FaceRotationTimeLeft;
+				data.AmountTilUnarmed = pawn->AmountTilUnarmed;
+				data.AgainstWallState = pawn->AgainstWallState;
+				data.WeaponAnimState = pawn->WeaponAnimState;
+				data.CurrentGrabTurnType = pawn->CurrentGrabTurnType;
+				data.LadderType = pawn->LadderType;
+				data.AnimationMovementState = pawn->AnimationMovementState;
+				data.PendingAnimationMovementState = pawn->PendingAnimationMovementState;
+				data.OldMovementState = pawn->OldMovementState;
+				data.PendingMovementState = pawn->PendingMovementState;
+				data.MovementState = pawn->MovementState;
+				data.ReplicatedMovementState = pawn->ReplicatedMovementState;
+				data.AIAimOldMovementState = pawn->AIAimOldMovementState;
+				data.OverrideWalkingState = pawn->OverrideWalkingState;
+				data.PendingOverrideWalkingState = pawn->PendingOverrideWalkingState;
+				data.CurrentWalkingState = pawn->CurrentWalkingState;
+				data.ReplicateCustomAnimCount = pawn->ReplicateCustomAnimCount;
+				data.MoveActionHint = pawn->MoveActionHint;
+				data.ReloadCount = pawn->ReloadCount;
+				data.NoOfBreathingSounds = pawn->NoOfBreathingSounds;
+				data.AgainstWallLeftHand = pawn->AgainstWallLeftHand;
+				data.AgainstWallRightHand = pawn->AgainstWallRightHand;
+				data.AgainstWallNormal = pawn->AgainstWallNormal;
+				data.MinLookConstraint = pawn->MinLookConstraint;
+				data.MaxLookConstraint = pawn->MaxLookConstraint;
+				data.LegRotationSlowTimer = pawn->LegRotationSlowTimer;
+				data.LegRotation = pawn->LegRotation;
+				data.ASPollTimer = pawn->ASPollTimer;
+				data.ASSlotPointer = pawn->ASSlotPointer;
+				data.ASDistanceAccum = pawn->ASDistanceAccum;
+				data.NewFloorSmooth = pawn->NewFloorSmooth;
+				data.TargetMeshTranslationZ = pawn->TargetMeshTranslationZ;
+				data.SmoothOffset = pawn->SmoothOffset;
+				data.MoveLocation = pawn->MoveLocation;
+				data.MoveNormal = pawn->MoveNormal;
+				data.MoveLedgeLocation = pawn->MoveLedgeLocation;
+				data.MoveLedgeNormal = pawn->MoveLedgeNormal;
+				data.MoveLedgeResult = pawn->MoveLedgeResult;
+				data.RemoteViewYaw = pawn->RemoteViewYaw;
+				data.SpeedSprintEnergy = pawn->SpeedSprintEnergy;
+				data.RollTriggerTime = pawn->RollTriggerTime;
+				data.FallingUncontrolledHeight = pawn->FallingUncontrolledHeight;
+				data.EnterFallingHeight = pawn->EnterFallingHeight;
+				data.SlideEffectUpdateTimer = pawn->SlideEffectUpdateTimer;
+				data.LastJumpLocation = pawn->LastJumpLocation;
+				data.MovementStringGapTimer = pawn->MovementStringGapTimer;
+				data.PlayerCameraLocation = pawn->PlayerCameraLocation;
+				data.PlayerCameraRotation = pawn->PlayerCameraRotation;
+				data.BitField6 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x904);
+
+				dataController.BitField0 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(controller) + 0x3C);
+				dataController.BitField1 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(controller) + 0x40);
+				dataController.BitField2 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(controller) + 0x44);
+				dataController.Physics = controller->Physics;
+				dataController.CollisionType = controller->CollisionType;
+				dataController.Location = controller->Location;
+				dataController.Rotation = controller->Rotation;
+				dataController.Velocity = controller->Velocity;
+				dataController.Acceleration = controller->Acceleration;
+				dataController.AngularVelocity = controller->AngularVelocity;
+				dataController.RelativeLocation = controller->RelativeLocation;
+				dataController.RelativeRotation = controller->RelativeRotation;
+				dataController.DesiredRotation = controller->DesiredRotation;
+				dataController.BitField3 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(controller) + 0x1D0);
+				dataController.MinHitWall = controller->MinHitWall;
+				dataController.MoveTimer = controller->MoveTimer;
+				dataController.Destination = controller->Destination;
+				dataController.FocalPoint = controller->FocalPoint;
+				dataController.AdjustLoc = controller->AdjustLoc;
+				dataController.CurrentPathDir = controller->CurrentPathDir;
+				dataController.GroundPitchTime = controller->GroundPitchTime;
+				dataController.ViewX = controller->ViewX;
+				dataController.ViewY = controller->ViewY;
+				dataController.ViewZ = controller->ViewZ;
+				dataController.FailedReachTime = controller->FailedReachTime;
+				dataController.FailedReachLocation = controller->FailedReachLocation;
+				dataController.SightCounter = controller->SightCounter;
+				dataController.RespawnPredictionTime = controller->RespawnPredictionTime;
+				dataController.InUseNodeCostMultiplier = controller->InUseNodeCostMultiplier;
+				dataController.HighJumpNodeCostModifier = controller->HighJumpNodeCostModifier;
+				dataController.LaneOffset = controller->LaneOffset;
+				dataController.OldBasedRotation = controller->OldBasedRotation;
+				dataController.currentLaneSlot = controller->currentLaneSlot;
+				dataController.pathMatesCount = controller->pathMatesCount;
+
+				dataController.BitField4 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x2EC);
+				dataController.MaxResponseTime = controller->MaxResponseTime;
+				dataController.WaitDelay = controller->WaitDelay;
+				dataController.DoubleClickDir = controller->DoubleClickDir;
+				dataController.bIgnoreMoveInput = controller->bIgnoreMoveInput;
+				dataController.bIgnoreLookInput = controller->bIgnoreLookInput;
+				dataController.BitField5 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x300);
+				dataController.bRun = controller->bRun;
+				dataController.bDuck = controller->bDuck;
+				dataController.FOVAngle = controller->FOVAngle;
+				dataController.DesiredFOV = controller->DesiredFOV;
+				dataController.DefaultFOV = controller->DefaultFOV;
+				dataController.TargetViewRotation = controller->TargetViewRotation;
+				dataController.TargetEyeHeight = controller->TargetEyeHeight;
+				dataController.BlendedTargetViewRotation = controller->BlendedTargetViewRotation;
+				dataController.LastAckedAccel = controller->LastAckedAccel;
+				dataController.CurrentTimeStamp = controller->CurrentTimeStamp;
+				dataController.LastUpdateTime = controller->LastUpdateTime;
+				dataController.GroundPitch = controller->GroundPitch;
+				dataController.OldFloor = controller->OldFloor;
+
+				dataController.BitField6 = *reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x52C);
+				dataController.TargetingPawnInterp = controller->TargetingPawnInterp;
+				dataController.TargetingCutoffAngle = controller->TargetingCutoffAngle;
+				dataController.TargetActorLocation = controller->TargetActorLocation;
+				dataController.LookAtTimeDelay = controller->LookAtTimeDelay;
+				dataController.MeleeLastAction = controller->MeleeLastAction;
+				dataController.bIgnoreButtonInput = controller->bIgnoreButtonInput;
+				dataController.CachedWalkingState = controller->CachedWalkingState;
+				dataController.WallRunningAlignTime = controller->WallRunningAlignTime;
+				dataController.WallRunningAlignYaw = controller->WallRunningAlignYaw;
+				dataController.ReactionTimeEnergy = controller->ReactionTimeEnergy;
+				dataController.WallClimbingDodgeJumpThreshold = controller->WallClimbingDodgeJumpThreshold;
+				dataController.WallRunningDodgeJumpThreshold = controller->WallRunningDodgeJumpThreshold;
+				dataController.WalkCyclePart1 = controller->WalkCyclePart1;
+				dataController.WalkCyclePart2 = controller->WalkCyclePart2;
+				dataController.AccelerationTime = controller->AccelerationTime;
+				dataController.VehicleRotation = controller->VehicleRotation;
+				dataController.DriverRotation = controller->DriverRotation;
+				dataController.StickySpeed = controller->StickySpeed;
+				dataController.FOVZoomRate = controller->FOVZoomRate;
+				dataController.FOVZoomDelay = controller->FOVZoomDelay;
+				dataController.MouseX = controller->MouseX;
+				dataController.MouseY = controller->MouseY;
+				dataController.ActualAccelX = controller->ActualAccelX;
+				dataController.ActualAccelY = controller->ActualAccelY;
+				dataController.ActualAccelZ = controller->ActualAccelZ;
+				dataController.SixAxisDisarmZ = controller->SixAxisDisarmZ;
+				dataController.SixAxisDisarmY = controller->SixAxisDisarmY;
+				dataController.SixAxisRollZ = controller->SixAxisRollZ;
+				dataController.SixAxisRollY = controller->SixAxisRollY;
+				dataController.DisarmTimeMultiplier = controller->DisarmTimeMultiplier;
+				dataController.LastZAxisTilt = controller->LastZAxisTilt;
+				dataController.LastYAxisTilt = controller->LastYAxisTilt;
+
+				switch (pawn->MovementState) {
+					case Classes::EMovement::MOVE_WallRun:
+					case Classes::EMovement::MOVE_WallRunningLeft:
+					case Classes::EMovement::MOVE_WallRunningRight:
+						memcpy(dataWallrun, reinterpret_cast<byte *>(pawn->Moves[static_cast<size_t>(pawn->MovementState.GetValue())]) + 0x18C, sizeof(dataWallrun));
+						break;
+				}
+			} else if (GetAsyncKeyState(0x35) < 0) {
+/*
+				auto moves = pawn->Moves;
+				for (auto i = 0UL; i < moves.Num(); ++i) {
+					auto move = moves[i];
+					if (move) {
+						move->EndState(Classes::FName("None"));
+						move->ResetMove();
+					}
+				}
+
+				pawn->GotoState(Classes::FName("None"), Classes::FName("None"), true, false);
+				controller->GotoState(Classes::FName("None"), Classes::FName("None"), true, false);
+
+				pawn->OldMovementState = Classes::EMovement::MOVE_None;
+				pawn->MovementState = Classes::EMovement::MOVE_None;
+				pawn->SetMove(data.MovementState, false, false);
+
+				pawn->Location = data.Location;
+				pawn->Rotation = data.Rotation;
+				pawn->Velocity = data.Velocity;
+				pawn->Acceleration = data.Acceleration;
+				pawn->AngularVelocity = data.AngularVelocity;
+				pawn->RelativeLocation = data.RelativeLocation;
+				pawn->RelativeRotation = data.RelativeRotation;
+				pawn->DesiredRotation = data.DesiredRotation;
+				pawn->VelocityMagnitude2D = data.VelocityMagnitude2D;
+				pawn->VelocityMagnitude = data.VelocityMagnitude;
+				pawn->VelocityDir2D = data.VelocityDir2D;
+				pawn->VelocityDir = data.VelocityDir;
+				pawn->FaceRotationTimeLeft = data.FaceRotationTimeLeft;
+				pawn->AmountTilUnarmed = data.AmountTilUnarmed;
+				pawn->AgainstWallState = data.AgainstWallState;
+				pawn->WeaponAnimState = data.WeaponAnimState;
+				pawn->CurrentGrabTurnType = data.CurrentGrabTurnType;
+				pawn->LadderType = data.LadderType;
+				pawn->AnimationMovementState = data.AnimationMovementState;
+				pawn->PendingAnimationMovementState = data.PendingAnimationMovementState;
+				pawn->OldMovementState = data.OldMovementState;
+				pawn->PendingMovementState = data.PendingMovementState;
+				pawn->MovementState = data.MovementState;
+				pawn->ReplicatedMovementState = data.ReplicatedMovementState;
+				pawn->AIAimOldMovementState = data.AIAimOldMovementState;
+				pawn->OverrideWalkingState = data.OverrideWalkingState;
+				pawn->PendingOverrideWalkingState = data.PendingOverrideWalkingState;
+				pawn->CurrentWalkingState = data.CurrentWalkingState;
+				pawn->ReplicateCustomAnimCount = data.ReplicateCustomAnimCount;
+				pawn->MoveActionHint = data.MoveActionHint;
+				pawn->ReloadCount = data.ReloadCount;
+				pawn->NoOfBreathingSounds = data.NoOfBreathingSounds;
+				pawn->AgainstWallLeftHand = data.AgainstWallLeftHand;
+				pawn->AgainstWallRightHand = data.AgainstWallRightHand;
+				pawn->AgainstWallNormal = data.AgainstWallNormal;
+				pawn->MinLookConstraint = data.MinLookConstraint;
+				pawn->MaxLookConstraint = data.MaxLookConstraint;
+				pawn->LegRotationSlowTimer = data.LegRotationSlowTimer;
+				pawn->LegRotation = data.LegRotation;
+				pawn->ASPollTimer = data.ASPollTimer;
+				pawn->ASSlotPointer = data.ASSlotPointer;
+				pawn->ASDistanceAccum = data.ASDistanceAccum;
+				pawn->NewFloorSmooth = data.NewFloorSmooth;
+				pawn->TargetMeshTranslationZ = data.TargetMeshTranslationZ;
+				pawn->SmoothOffset = data.SmoothOffset;
+				pawn->MoveLocation = data.MoveLocation;
+				pawn->MoveNormal = data.MoveNormal;
+				pawn->MoveLedgeLocation = data.MoveLedgeLocation;
+				pawn->MoveLedgeNormal = data.MoveLedgeNormal;
+				pawn->MoveLedgeResult = data.MoveLedgeResult;
+				pawn->RemoteViewYaw = data.RemoteViewYaw;
+				pawn->SpeedSprintEnergy = data.SpeedSprintEnergy;
+				pawn->RollTriggerTime = data.RollTriggerTime;
+				pawn->FallingUncontrolledHeight = data.FallingUncontrolledHeight;
+				pawn->EnterFallingHeight = data.EnterFallingHeight;
+				pawn->SlideEffectUpdateTimer = data.SlideEffectUpdateTimer;
+				pawn->LastJumpLocation = data.LastJumpLocation;
+				pawn->MovementStringGapTimer = data.MovementStringGapTimer;
+				pawn->PlayerCameraLocation = data.PlayerCameraLocation;
+				pawn->PlayerCameraRotation = data.PlayerCameraRotation;
+
+				controller->Location = dataController.Location;
+				controller->Rotation = dataController.Rotation;
+				controller->Velocity = dataController.Velocity;
+*/
+
+				/* pawn->StopAllCustomAnimations(0.0f);
+				pawn->ClearAnimationMovementStateInternal();
+				pawn->ClearOverrideWalkingStateInternal();
+				pawn->StopIgnoreLookInput();
+				pawn->StopIgnoreMoveInput();
+				pawn->ClearPathStep();
+				pawn->ClearConstraints();
+				controller->ClientIgnoreLookInput(false);
+				controller->ClientIgnoreMoveInput(false);
+				controller->IgnoreButtonInput(false);
+				controller->IgnoreLookInput(false);
+				controller->IgnoreMoveInput(false);
+				controller->ClearAckedMoves();
+				controller->ResetPlayerMovementInput();
+
+				auto timers = pawn->Timers;
+				for (auto i = 0UL; i < timers.Num(); ++i) {
+					pawn->ClearTimer(timers[i].FuncName, timers[i].TimerObj);
+				}
+
+				auto moves = pawn->Moves;
+				for (auto i = 0UL; i < moves.Num(); ++i) {
+					if (moves[i]) {
+						moves[i]->bLookAtTargetAngle = false;
+						moves[i]->bLookAtTargetLocation = false;
+					}
+				}
+
+				pawn->GotoState(Classes::FName("None"), Classes::FName("None"), true, false);
+				controller->GotoState(Classes::FName("None"), Classes::FName("None"), true, false);
+
+				controller->IgnoreButtonInput(false);
+				controller->IgnoreLookInput(false);
+				controller->IgnoreMoveInput(false);
+				pawn->StopAllCustomAnimations(0.0f);
+				pawn->SetIgnoreLookInput(0);
+				pawn->SetIgnoreMoveInput(0);
+				pawn->StopIgnoreMoveInput();
+				pawn->StopIgnoreLookInput();
+				pawn->bCanJump = true;
+				pawn->bJumpCapable = true; */
+
+				pawn->StopAllCustomAnimations(-1.0f);
+				pawn->SetMove(data.MovementState, false, false);
+				
+				switch (data.MovementState) {
+					case Classes::EMovement::MOVE_WallRun:
+					case Classes::EMovement::MOVE_WallRunningLeft:
+					case Classes::EMovement::MOVE_WallRunningRight:
+						printf("what\n");
+						memcpy(reinterpret_cast<byte *>(pawn->Moves[static_cast<size_t>(data.MovementState.GetValue())]) + 0x18C, dataWallrun, sizeof(dataWallrun));
+						break;
+				}
+
+				pawn->ObjectFlags = data.ObjectFlags;
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x3C) = data.BitField0;
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x40) = data.BitField1;
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x44) = data.BitField2;
+				pawn->Physics = data.Physics;
+				pawn->CollisionType = data.CollisionType;
+				pawn->Location = data.Location;
+				pawn->Rotation = data.Rotation;
+				pawn->Velocity = data.Velocity;
+				pawn->Acceleration = data.Acceleration;
+				pawn->AngularVelocity = data.AngularVelocity;
+				pawn->RelativeLocation = data.RelativeLocation;
+				pawn->RelativeRotation = data.RelativeRotation;
+				pawn->DesiredRotation = data.DesiredRotation;
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x1E0) = data.BitField3;
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x1E4) = data.BitField4;
+				pawn->PathSearchType = data.PathSearchType;
+				pawn->RemoteViewPitch = data.RemoteViewPitch;
+				pawn->FlashCount = data.FlashCount;
+				pawn->FiringMode = data.FiringMode;
+				pawn->Floor = data.Floor;
+				pawn->OldZ = data.OldZ;
+				pawn->RMVelocity = data.RMVelocity;
+				pawn->Health = data.Health;
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x41C) = data.BitField5;
+				pawn->VelocityMagnitude2D = data.VelocityMagnitude2D;
+				pawn->VelocityMagnitude = data.VelocityMagnitude;
+				pawn->VelocityDir2D = data.VelocityDir2D;
+				pawn->VelocityDir = data.VelocityDir;
+				pawn->FaceRotationTimeLeft = data.FaceRotationTimeLeft;
+				pawn->AmountTilUnarmed = data.AmountTilUnarmed;
+				pawn->AgainstWallState = data.AgainstWallState;
+				pawn->WeaponAnimState = data.WeaponAnimState;
+				pawn->CurrentGrabTurnType = data.CurrentGrabTurnType;
+				pawn->LadderType = data.LadderType;
+				pawn->AnimationMovementState = data.AnimationMovementState;
+				pawn->PendingAnimationMovementState = data.PendingAnimationMovementState;
+				pawn->OldMovementState = data.OldMovementState;
+				pawn->PendingMovementState = data.PendingMovementState;
+				pawn->MovementState = data.MovementState;
+				pawn->ReplicatedMovementState = data.ReplicatedMovementState;
+				pawn->AIAimOldMovementState = data.AIAimOldMovementState;
+				pawn->OverrideWalkingState = data.OverrideWalkingState;
+				pawn->PendingOverrideWalkingState = data.PendingOverrideWalkingState;
+				pawn->CurrentWalkingState = data.CurrentWalkingState;
+				pawn->ReplicateCustomAnimCount = data.ReplicateCustomAnimCount;
+				pawn->MoveActionHint = data.MoveActionHint;
+				pawn->ReloadCount = data.ReloadCount;
+				pawn->NoOfBreathingSounds = data.NoOfBreathingSounds;
+				pawn->AgainstWallLeftHand = data.AgainstWallLeftHand;
+				pawn->AgainstWallRightHand = data.AgainstWallRightHand;
+				pawn->AgainstWallNormal = data.AgainstWallNormal;
+				pawn->MinLookConstraint = data.MinLookConstraint;
+				pawn->MaxLookConstraint = data.MaxLookConstraint;
+				pawn->LegRotationSlowTimer = data.LegRotationSlowTimer;
+				pawn->LegRotation = data.LegRotation;
+				pawn->ASPollTimer = data.ASPollTimer;
+				pawn->ASSlotPointer = data.ASSlotPointer;
+				pawn->ASDistanceAccum = data.ASDistanceAccum;
+				pawn->NewFloorSmooth = data.NewFloorSmooth;
+				pawn->TargetMeshTranslationZ = data.TargetMeshTranslationZ;
+				pawn->SmoothOffset = data.SmoothOffset;
+				pawn->MoveLocation = data.MoveLocation;
+				pawn->MoveNormal = data.MoveNormal;
+				pawn->MoveLedgeLocation = data.MoveLedgeLocation;
+				pawn->MoveLedgeNormal = data.MoveLedgeNormal;
+				pawn->MoveLedgeResult = data.MoveLedgeResult;
+				pawn->RemoteViewYaw = data.RemoteViewYaw;
+				pawn->SpeedSprintEnergy = data.SpeedSprintEnergy;
+				pawn->RollTriggerTime = data.RollTriggerTime;
+				pawn->FallingUncontrolledHeight = data.FallingUncontrolledHeight;
+				pawn->EnterFallingHeight = data.EnterFallingHeight;
+				pawn->SlideEffectUpdateTimer = data.SlideEffectUpdateTimer;
+				pawn->LastJumpLocation = data.LastJumpLocation;
+				pawn->MovementStringGapTimer = data.MovementStringGapTimer;
+				pawn->PlayerCameraLocation = data.PlayerCameraLocation;
+				pawn->PlayerCameraRotation = data.PlayerCameraRotation;
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x904) = data.BitField6;
+
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(controller) + 0x3C) = dataController.BitField0;
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(controller) + 0x40) = dataController.BitField1;
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(controller) + 0x44) = dataController.BitField2;
+				controller->Physics = dataController.Physics;
+				controller->CollisionType = dataController.CollisionType;
+				controller->Location = dataController.Location;
+				controller->Rotation = dataController.Rotation;
+				controller->Velocity = dataController.Velocity;
+				controller->Acceleration = dataController.Acceleration;
+				controller->AngularVelocity = dataController.AngularVelocity;
+				controller->RelativeLocation = dataController.RelativeLocation;
+				controller->RelativeRotation = dataController.RelativeRotation;
+				controller->DesiredRotation = dataController.DesiredRotation;
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(controller) + 0x1D0) = dataController.BitField3;
+				controller->MinHitWall = dataController.MinHitWall;
+				controller->MoveTimer = dataController.MoveTimer;
+				controller->Destination = dataController.Destination;
+				controller->FocalPoint = dataController.FocalPoint;
+				controller->AdjustLoc = dataController.AdjustLoc;
+				controller->CurrentPathDir = dataController.CurrentPathDir;
+				controller->GroundPitchTime = dataController.GroundPitchTime;
+				controller->ViewX = dataController.ViewX;
+				controller->ViewY = dataController.ViewY;
+				controller->ViewZ = dataController.ViewZ;
+				controller->FailedReachTime = dataController.FailedReachTime;
+				controller->FailedReachLocation = dataController.FailedReachLocation;
+				controller->SightCounter = dataController.SightCounter;
+				controller->RespawnPredictionTime = dataController.RespawnPredictionTime;
+				controller->InUseNodeCostMultiplier = dataController.InUseNodeCostMultiplier;
+				controller->HighJumpNodeCostModifier = dataController.HighJumpNodeCostModifier;
+				controller->LaneOffset = dataController.LaneOffset;
+				controller->OldBasedRotation = dataController.OldBasedRotation;
+				controller->currentLaneSlot = dataController.currentLaneSlot;
+
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x2EC) = dataController.BitField4;
+				controller->MaxResponseTime = dataController.MaxResponseTime;
+				controller->WaitDelay = dataController.WaitDelay;
+				controller->DoubleClickDir = dataController.DoubleClickDir;
+				controller->bIgnoreMoveInput = dataController.bIgnoreMoveInput;
+				controller->bIgnoreLookInput = dataController.bIgnoreLookInput;
+				controller->bRun = dataController.bRun;
+				controller->bDuck = dataController.bDuck;
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x300) = dataController.BitField5;
+				controller->FOVAngle = dataController.FOVAngle;
+				controller->DesiredFOV = dataController.DesiredFOV;
+				controller->DefaultFOV = dataController.DefaultFOV;
+				controller->TargetViewRotation = dataController.TargetViewRotation;
+				controller->TargetEyeHeight = dataController.TargetEyeHeight;
+				controller->BlendedTargetViewRotation = dataController.BlendedTargetViewRotation;
+				controller->LastAckedAccel = dataController.LastAckedAccel;
+				controller->CurrentTimeStamp = dataController.CurrentTimeStamp;
+				controller->LastUpdateTime = dataController.LastUpdateTime;
+				controller->GroundPitch = dataController.GroundPitch;
+				controller->OldFloor = dataController.OldFloor;
+				*reinterpret_cast<unsigned long *>(reinterpret_cast<byte *>(pawn) + 0x52C) = dataController.BitField6;
+				controller->TargetingPawnInterp = dataController.TargetingPawnInterp;
+				controller->TargetingCutoffAngle = dataController.TargetingCutoffAngle;
+				controller->TargetActorLocation = dataController.TargetActorLocation;
+				controller->LookAtTimeDelay = dataController.LookAtTimeDelay;
+				controller->MeleeLastAction = dataController.MeleeLastAction;
+				controller->bIgnoreButtonInput = dataController.bIgnoreButtonInput;
+				controller->CachedWalkingState = dataController.CachedWalkingState;
+				controller->WallRunningAlignTime = dataController.WallRunningAlignTime;
+				controller->WallRunningAlignYaw = dataController.WallRunningAlignYaw;
+				controller->ReactionTimeEnergy = dataController.ReactionTimeEnergy;
+				controller->WallClimbingDodgeJumpThreshold = dataController.WallClimbingDodgeJumpThreshold;
+				controller->WallRunningDodgeJumpThreshold = dataController.WallRunningDodgeJumpThreshold;
+				controller->WalkCyclePart1 = dataController.WalkCyclePart1;
+				controller->WalkCyclePart2 = dataController.WalkCyclePart2;
+				controller->AccelerationTime = dataController.AccelerationTime;
+				controller->VehicleRotation = dataController.VehicleRotation;
+				controller->DriverRotation = dataController.DriverRotation;
+				controller->StickySpeed = dataController.StickySpeed;
+				controller->FOVZoomRate = dataController.FOVZoomRate;
+				controller->FOVZoomDelay = dataController.FOVZoomDelay;
+				controller->MouseX = dataController.MouseX;
+				controller->MouseY = dataController.MouseY;
+				controller->ActualAccelX = dataController.ActualAccelX;
+				controller->ActualAccelY = dataController.ActualAccelY;
+				controller->ActualAccelZ = dataController.ActualAccelZ;
+				controller->SixAxisDisarmZ = dataController.SixAxisDisarmZ;
+				controller->SixAxisDisarmY = dataController.SixAxisDisarmY;
+				controller->SixAxisRollZ = dataController.SixAxisRollZ;
+				controller->SixAxisRollY = dataController.SixAxisRollY;
+				controller->DisarmTimeMultiplier = dataController.DisarmTimeMultiplier;
+				controller->LastZAxisTilt = dataController.LastZAxisTilt;
+				controller->LastYAxisTilt = dataController.LastYAxisTilt;
+				controller->pathMatesCount = dataController.pathMatesCount;
+			}
+		}
+	}
+#endif
 
 	tick.Original(scales, arg, delta);
 }
@@ -433,6 +1156,10 @@ void Engine::ExecuteCommand(Classes::FString command) {
 Classes::AWorldInfo *Engine::GetWorld(bool update) {
 	static Classes::AWorldInfo *cache = nullptr;
 
+	if (levelLoad.Loading) {
+		return nullptr;
+	}
+
 	if (!cache || update) {
 		auto objects = Classes::UObject::GetGlobalObjects();
 		for (auto i = 0UL; i < objects.Num(); ++i) {
@@ -456,6 +1183,10 @@ Classes::AWorldInfo *Engine::GetWorld(bool update) {
 Classes::ATdPlayerController *Engine::GetPlayerController(bool update) {
 	static Classes::ATdPlayerController *cache = nullptr;
 
+	if (levelLoad.Loading) {
+		return nullptr;
+	}
+
 	if (!cache || update) {
 		auto world = GetWorld(update);
 		if (world) {
@@ -473,6 +1204,10 @@ Classes::ATdPlayerController *Engine::GetPlayerController(bool update) {
 
 Classes::ATdPlayerPawn *Engine::GetPlayerPawn(bool update) {
 	static Classes::ATdPlayerPawn *cache = nullptr;
+
+	if (levelLoad.Loading) {
+		return nullptr;
+	}
 
 	if (!cache || update) {
 		auto controller = GetPlayerController(update);
@@ -548,6 +1283,31 @@ void Engine::TransformBones(Character character, Classes::TArray<Classes::FBoneA
 	}
 }
 
+// Define these to remove the D3DX dependency
+D3DXMATRIX *WINAPI D3DXMatrixMultiply(D3DXMATRIX *pOut, const D3DXMATRIX *pM1, const D3DXMATRIX *pM2) {
+	D3DXMATRIX out;
+
+	for (auto i = 0; i < 4; i++) {
+		for (auto j = 0; j < 4; j++) {
+			out.m[i][j] = pM1->m[i][0] * pM2->m[0][j] + pM1->m[i][1] * pM2->m[1][j] + pM1->m[i][2] * pM2->m[2][j] + pM1->m[i][3] * pM2->m[3][j];
+		}
+	}
+
+	*pOut = out;
+	return pOut;
+}
+
+D3DXVECTOR4 *WINAPI D3DXVec4Transform(D3DXVECTOR4 *pOut, const D3DXVECTOR4 *pV, const D3DXMATRIX *pM) {
+	*pOut = {
+		pM->m[0][0] * pV->x + pM->m[1][0] * pV->y + pM->m[2][0] * pV->z + pM->m[3][0] * pV->w,
+		pM->m[0][1] * pV->x + pM->m[1][1] * pV->y + pM->m[2][1] * pV->z + pM->m[3][1] * pV->w,
+		pM->m[0][2] * pV->x + pM->m[1][2] * pV->y + pM->m[2][2] * pV->z + pM->m[3][2] * pV->w,
+		pM->m[0][3] * pV->x + pM->m[1][3] * pV->y + pM->m[2][3] * pV->z + pM->m[3][3] * pV->w
+	};
+
+	return pOut;
+}
+
 bool Engine::WorldToScreen(IDirect3DDevice9 *device, Classes::FVector &inOutLocation) {
 	auto controller = Engine::GetPlayerController();
 	if (!controller || !projectionTick.Matrix) {
@@ -600,6 +1360,14 @@ void Engine::OnPreLevelLoad(LevelLoadCallback callback) {
 
 void Engine::OnPostLevelLoad(LevelLoadCallback callback) {
 	levelLoad.PostCallbacks.push_back(callback);
+}
+
+void Engine::OnPreDeath(DeathCallback callback) {
+	death.PreCallbacks.push_back(callback);
+}
+
+void Engine::OnPostDeath(DeathCallback callback) {
+	death.PostCallbacks.push_back(callback);
 }
 
 void Engine::OnActorTick(ActorTickCallback callback) {
@@ -691,6 +1459,33 @@ bool Engine::Initialize() {
 
 	if (!Hook::TrampolineHook(LevelLoadHook, ptr, reinterpret_cast<void **>(&levelLoad.Original))) {
 		MessageBoxA(0, "Failed to hook LevelLoad", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	// PreDeath
+	if (!(ptr = Pattern::FindPattern("\x8D\x4C\x24\x10\xE8\x00\x00\x00\x00\x8B\x4C\x24\x14\x85\xC9\x7C\x1E\x3B\xCF\x0F\x8D\x00\x00\x00\x00\x8B\x04\x8E\x8B\x40\x08\x25\x00\x00\x00\x00\x33\xD2\x0B\xC2\x75\xD6\xE9\x00\x00\x00\x00", "xxxxx????xxxxxxxxxxxx????xxxxxxx????xxxxxxx????"))) {
+		MessageBoxA(0, "Failed to find PreDeath (1)", "Failure", MB_ICONERROR);
+		return false;
+	}
+	
+	if (!(ptr = Pattern::FindPattern(ptr, 0x1000, "\xC7\x05\x00\x00\x00\x00\x00\x00\x00\x00\xB8\x00\x00\x00\x00\xC3\xB8\x00\x00\x00\x00\xC3", "xx????????x????xx????x"))) {
+		MessageBoxA(0, "Failed to find PreDeath (2)", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	if (!Hook::TrampolineHook(PreDeathHook, ptr, reinterpret_cast<void **>(&death.PreOriginal))) {
+		MessageBoxA(0, "Failed to hook PreDeath", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	// PostDeath
+	if (!(ptr = Pattern::FindPattern(ptr, 0x1000, "\x8B\x0D\x00\x00\x00\x00\xC7\x05\x00\x00\x00\x00\x00\x00\x00\x00\x8B\x01\x8B\x90\x00\x00\x00\x00\xFF\xD2\xB8\x00\x00\x00\x00\xC3\x8B\xC1\xC7\x00\x00\x00\x00\x00\xC3", "xx????xx????????xxxx????xxx????xxxxx????x"))) {
+		MessageBoxA(0, "Failed to hook PostDeath", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	if (!Hook::TrampolineHook(PostDeathHook, ptr, reinterpret_cast<void **>(&death.PostOriginal))) {
+		MessageBoxA(0, "Failed to hook PreDeath", "Failure", MB_ICONERROR);
 		return false;
 	}
 

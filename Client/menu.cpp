@@ -20,13 +20,6 @@ void RenderMenu(IDirect3DDevice9 *device) {
 	}
 }
 
-void InputHandler(int msg, int keycode) {
-	if (msg == WM_KEYDOWN && keycode == VK_INSERT) {
-		show = !show;
-		Engine::BlockInput(show);
-	}
-}
-
 /*** Basic Tabs ***/
 void EngineTab() {
 	auto engine = Engine::GetEngine();
@@ -35,12 +28,22 @@ void EngineTab() {
 	}
 
 	static char command[0xFFF] = { 0 };
-	ImGui::InputText("##command", command, sizeof(command));
-	ImGui::SameLine();
-	if (ImGui::Button("Execute Comamnd") && command[0]) {
-		Engine::ExecuteCommand(std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().from_bytes(command).c_str());
 
-		command[0] = 0;
+	auto commandInputCallback = []() {
+		if (command[0]) {
+			Engine::ExecuteCommand(std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().from_bytes(command).c_str());
+
+			command[0] = 0;
+		}
+	};
+
+	if (ImGui::InputText("##command", command, sizeof(command), ImGuiInputTextFlags_EnterReturnsTrue)) {
+		commandInputCallback();
+	}
+
+	ImGui::SameLine();
+	if (ImGui::Button("Execute Comamnd")) {
+		commandInputCallback();
 	}
 
 	bool check = engine->bSmoothFrameRate;
@@ -108,7 +111,20 @@ namespace Menu {
 
 	bool Initialize() {
 		Engine::OnRenderScene(RenderMenu);
-		Engine::OnSuperInput(InputHandler);
+
+		Engine::OnInput([](int msg, int keycode) {
+			if (!show && msg == WM_KEYUP && keycode == VK_INSERT) {
+				show = true;
+				Engine::BlockInput(true);
+			}
+		});
+
+		Engine::OnSuperInput([](int msg, int keycode) {
+			if (show && msg == WM_KEYUP && keycode == VK_INSERT) {
+				show = false;
+				Engine::BlockInput(false);
+			}
+		});
 
 		AddTab("Engine", EngineTab);
 		AddTab("World", WorldTab);

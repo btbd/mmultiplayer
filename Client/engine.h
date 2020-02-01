@@ -5,6 +5,7 @@
 typedef void (*RenderSceneCallback)(IDirect3DDevice9 *device);
 typedef bool (*ProcessEventCallback)(Classes::UObject *, Classes::UFunction *, void *, void *);
 typedef void (*LevelLoadCallback)(const wchar_t *levelName);
+typedef void (*DeathCallback)();
 typedef void (*ActorTickCallback)(Classes::AActor *actor);
 typedef void (*BonesTickCallback)(Classes::TArray<Classes::FBoneAtom> *atoms);
 typedef void (*TickCallback)(float delta);
@@ -13,7 +14,7 @@ typedef void (*InputCallback)(int message, int keycode);
 namespace Engine {
 	static const char *Characters[] = { "Faith", "Kate", "Celeste", "Assault Celeste", "Jacknife", "Miller", "Kreeg", "Pursuit Cop", "Ghost" };
 	enum class Character {
-		Faith, Kate, Celeste, AssaultCeleste, Jacknife, Miller, Kreeg, PursuitCop, Ghost,
+		Faith, Kate, Celeste, AssaultCeleste, Jacknife, Miller, Kreeg, PursuitCop, Ghost, Max
 	};
 
 	Classes::UTdGameEngine *GetEngine(bool update = false);
@@ -32,6 +33,8 @@ namespace Engine {
 	void OnProcessEvent(ProcessEventCallback callback);
 	void OnPreLevelLoad(LevelLoadCallback callback);
 	void OnPostLevelLoad(LevelLoadCallback callback);
+	void OnPreDeath(DeathCallback callback);
+	void OnPostDeath(DeathCallback callback);
 	void OnActorTick(ActorTickCallback callback);
 	void OnBonesTick(BonesTickCallback callback);
 	void OnTick(TickCallback callback);

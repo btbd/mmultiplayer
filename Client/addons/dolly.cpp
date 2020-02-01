@@ -403,14 +403,6 @@ static void OnTick(float) {
 	}
 }
 
-static void OnBonesTick(Classes::TArray<Classes::FBoneAtom> *bones) {
-	for (auto &r : recordings) {
-		if (r.Pawn && &r.Pawn->Mesh3p->LocalAtoms == bones && frame >= r.StartFrame && frame < r.StartFrame + static_cast<int>(r.Frames.size())) {
-			Engine::TransformBones(r.Character, bones, r.Frames[frame - r.StartFrame].Bones);
-		}
-	}
-}
-
 static void OnRender(IDirect3DDevice9 *device) {
 	if (!playing) {
 		auto window = ImGui::BeginRawScene("##dolly-backbuffer");
@@ -428,7 +420,7 @@ static void OnRender(IDirect3DDevice9 *device) {
 					s1[p] = Slope(i + 1, fieldOffset);
 				}
 
-				for (float t = static_cast<float>(m0.Frame); t < m1.Frame; t += 15) {
+				for (float t = static_cast<float>(m0.Frame); t < m1.Frame; t += 5) {
 					Classes::FVector pos;
 					for (auto p = 0; p < 3; ++p) {
 						auto fieldOffset = FIELD_OFFSET(Dolly::Marker, Position.X) + (p * sizeof(float));
@@ -436,11 +428,7 @@ static void OnRender(IDirect3DDevice9 *device) {
 					}
 
 					if (Engine::WorldToScreen(device, pos)) {
-						auto tickSize = 3000.0f / pos.Z;
-
-						ImVec2 topLeft(pos.X - tickSize, pos.Y - tickSize);
-						ImVec2 bottomRight(pos.X + tickSize, pos.Y + tickSize);
-						window->DrawList->AddRectFilled(topLeft, bottomRight, ImColor(ImVec4(1, 0, 0, 1)));
+						window->DrawList->AddCircleFilled(ImVec2(pos.X, pos.Y), 2000.0f / pos.Z, ImColor(ImVec4(1, 0, 0, 1)));
 					}
 				}
 			}
@@ -464,8 +452,15 @@ static void OnRender(IDirect3DDevice9 *device) {
 bool Dolly::Initialize() {
 	Menu::AddTab("Dolly", DollyTab);
 	Engine::OnTick(OnTick);
-	Engine::OnBonesTick(OnBonesTick);
 	Engine::OnRenderScene(OnRender);
+
+	Engine::OnBonesTick([](Classes::TArray<Classes::FBoneAtom> *bones) {
+		for (auto &r : recordings) {
+			if (r.Pawn && &r.Pawn->Mesh3p->LocalAtoms == bones && frame >= r.StartFrame && frame < r.StartFrame + static_cast<int>(r.Frames.size())) {
+				Engine::TransformBones(r.Character, bones, r.Frames[frame - r.StartFrame].Bones);
+			}
+		}
+	});
 	
 	Engine::OnPreLevelLoad([](const wchar_t *levelName) {
 		for (auto &r : recordings) {
@@ -474,6 +469,18 @@ bool Dolly::Initialize() {
 	});
 
 	Engine::OnPostLevelLoad([](const wchar_t *levelName) {
+		for (auto &r : recordings) {
+			Engine::SpawnCharacter(r.Character, r.Pawn);
+		}
+	});
+
+	Engine::OnPreDeath([]() {
+		for (auto &r : recordings) {
+			r.Pawn = nullptr;
+		}
+	});
+
+	Engine::OnPostDeath([]() {
 		for (auto &r : recordings) {
 			Engine::SpawnCharacter(r.Character, r.Pawn);
 		}

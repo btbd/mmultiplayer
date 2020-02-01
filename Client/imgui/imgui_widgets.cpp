@@ -7623,7 +7623,7 @@ ImGuiWindow *ImGui::BeginRawScene(const char *name) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
-    ImGui::Begin(name, nullptr, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoTitleBar);
+    ImGui::Begin(name, nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize);
 
     auto &io = ImGui::GetIO();
     ImGui::SetWindowPos(ImVec2(0, 0), ImGuiCond_Always);
@@ -7637,5 +7637,4 @@ void ImGui::EndRawScene() {
     ImGui::End();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar(2);
-    ImGui::Render();
 }
