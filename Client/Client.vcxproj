@@ -161,6 +161,7 @@
   <ItemGroup>
     <ClInclude Include="addons\client.h" />
     <ClInclude Include="addons\dolly.h" />
+    <ClInclude Include="addons\trainer.h" />
     <ClInclude Include="engine.h" />
     <ClInclude Include="addon.h" />
     <ClInclude Include="hook.h" />
@@ -234,6 +235,7 @@
   <ItemGroup>
     <ClCompile Include="addons\client.cpp" />
     <ClCompile Include="addons\dolly.cpp" />
+    <ClCompile Include="addons\trainer.cpp" />
     <ClCompile Include="engine.cpp" />
     <ClCompile Include="hook.cpp" />
     <ClCompile Include="imgui\imgui.cpp" />

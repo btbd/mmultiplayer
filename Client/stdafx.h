@@ -37,3 +37,4 @@
 
 #include "addons/dolly.h"
 #include "addons/client.h"
+#include "addons/trainer.h"
