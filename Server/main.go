@@ -185,7 +185,7 @@ func tcpHandler(c net.Conn) {
 			}
 
 			msgCharacter, ok := msg["character"].(float64)
-			if !ok || (msgCharacter < 0 || msgCharacter >= CharacterMax) {
+			if !ok || msgCharacter < 0 || msgCharacter >= CharacterMax {
 				continue
 			}
 
@@ -314,6 +314,29 @@ func tcpHandler(c net.Conn) {
 				"id":    client.Id,
 				"level": client.Level,
 			})
+		case "character":
+			id, ok := msg["id"].(float64)
+			if !ok {
+				continue
+			}
+
+			character, ok := msg["character"].(float64)
+			if !ok || character < 0 || character >= CharacterMax {
+				continue
+			}
+
+			client := system.GetClientById(uint32(id))
+			if client == nil {
+				continue
+			}
+
+			client.Character = uint32(character)
+			client.LastSeen = time.Now()
+			client.Room.SendMessageExcept(client.Id, map[string]interface{}{
+				"type":      "character",
+				"id":        client.Id,
+				"character": client.Character,
+			})
 		case "pong":
 			id, ok := msg["id"].(float64)
 			if !ok {
@@ -401,21 +424,23 @@ func udpListener() {
 			continue
 		}
 
-		client := system.GetClientById((*Packet)(unsafe.Pointer(&buf[0])).Id)
-		if client == nil {
-			continue
-		}
-
-		client.LastPacket = buf[:PacketSize]
-		client.LastSeen = time.Now()
-
-		// Respond with the last packet of every other client in the same room and level
-		system.RLock()
-		for _, c := range client.Room.Clients {
-			if c.Id != client.Id && c.LastPacket != nil && c.Level == client.Level {
-				server.WriteTo(c.LastPacket, addr)
+		go func() {
+			client := system.GetClientById((*Packet)(unsafe.Pointer(&buf[0])).Id)
+			if client == nil {
+				return
 			}
-		}
-		system.RUnlock()
+
+			client.LastPacket = buf[:PacketSize]
+			client.LastSeen = time.Now()
+
+			// Respond with the last packet of every other client in the same room and level
+			system.RLock()
+			for _, c := range client.Room.Clients {
+				if c.Id != client.Id && c.LastPacket != nil && c.Level == client.Level {
+					server.WriteTo(c.LastPacket, addr)
+				}
+			}
+			system.RUnlock()
+		}()
 	}
 }
