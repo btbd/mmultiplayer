@@ -1702,6 +1702,7 @@ namespace ImGui
 
     IMGUI_API ImGuiWindow  *BeginRawScene(const char *name);
     IMGUI_API void          EndRawScene();
+    IMGUI_API bool          Hotkey(const char *label, int *k, const ImVec2 &size_arg = ImVec2(0, 0));
 
 } // namespace ImGui
 

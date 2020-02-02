@@ -2,24 +2,33 @@
 
 static json settings;
 
-std::string GetSettingsPath() {
+static std::string GetSettingsPath() {
 	char path[MAX_PATH];
 	GetTempPathA(sizeof(path), path);
 
 	return std::string(path) + "mmultiplayer.settings";
 }
 
-int Settings::GetKeybind(const char *name) {
-	auto v = settings["keybinds"][name];
-	if (v.is_null()) {
-		return -1;
+void Settings::SetSetting(const char *menu, const char *key, json value) {
+	if (settings[menu].is_null()) {
+		settings[menu] = json::object();
 	}
 
-	return v;
+	settings[menu][key] = value;
+	Settings::Save();
 }
 
-void Settings::SetKeybind(const char *name, int vk) {
-	settings["keybinds"][name] = vk;
+json Settings::GetSetting(const char *menu, const char *key, json defaultValue) {
+	if (settings[menu].is_null()) {
+		settings[menu] = json::object();
+	}
+
+	if (settings[menu][key].is_null() || settings[menu][key].type() != defaultValue.type()) {
+		settings[menu][key] = defaultValue;
+		Settings::Save();
+	}
+
+	return settings[menu][key];
 }
 
 void Settings::Load() {
@@ -38,20 +47,21 @@ void Settings::Load() {
 	if (reset) {
 		Reset();
 	}
-
-	Validate();
-}
-
-void Settings::Validate() {
-	if (settings["keybinds"].is_null()) {
-		settings["keybinds"] = json::object();
-	}
 }
 
 void Settings::Reset() {
-
+	settings = json::object();
+	Settings::Save();
 }
 
 void Settings::Save() {
+	std::ofstream file(GetSettingsPath(), std::ios::out);
+	if (!file) {
+		printf("settings: failed to save %s\n", GetSettingsPath().c_str());
+		return;
+	}
 
+	auto dump = settings.dump();
+	file.write(dump.c_str(), dump.size());
+	file.close();
 }

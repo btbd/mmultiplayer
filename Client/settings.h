@@ -1,10 +1,9 @@
 #pragma once
 
 namespace Settings {
-	int GetKeybind(const char *name);
-	void SetKeybind(const char *name, int vk);
+	void SetSetting(const char *sub, const char *key, json value);
+	json GetSetting(const char *sub, const char *key, json defaultValue);
 	void Load();
-	void Validate();
 	void Reset();
 	void Save();
 }

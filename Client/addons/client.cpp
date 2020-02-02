@@ -1,13 +1,14 @@
 #include "../stdafx.h"
 
-static char roomInput[0xFF] = "lobby";
-static char nameInput[0xFF] = "anonymous";
+static char roomInput[0xFF] = { 0 };
+static char nameInput[0xFF] = { 0 };
 static char chatInput[0x200] = { 0 };
 
 static auto connected = false, loading = false;
-static std::string room(roomInput);
+static std::string room;
 static sockaddr_in server = { 0 };
 static SOCKET tcpSocket = 0, udpSocket = 0;
+static int chatKeybind = 0;
 
 static struct {
 	bool Focused = false;
@@ -578,7 +579,9 @@ static void MultiplayerTab() {
 	ImGui::Text("Status: %s", connected ? "Connected" : "Connecting");
 
 	auto nameInputCallback = []() {
+		AddChatMessage(client.Name + " renamed to " + nameInput);
 		client.Name = nameInput;
+		Settings::SetSetting("client", "name", client.Name);
 
 		if (connected) {
 			SendJsonMessage({
@@ -606,6 +609,7 @@ static void MultiplayerTab() {
 			if (ImGui::Selectable(c, s)) {
 				selectedCharacter = c;
 				client.Character = static_cast<Engine::Character>(i);
+				Settings::SetSetting("client", "character", client.Character);
 
 				if (connected) {
 					SendJsonMessage({
@@ -626,6 +630,7 @@ static void MultiplayerTab() {
 
 	auto roomInputCallback = []() {
 		room = roomInput;
+		Settings::SetSetting("client", "room", room);
 
 		if (connected) {
 			Disconnect();
@@ -639,6 +644,10 @@ static void MultiplayerTab() {
 	ImGui::SameLine();
 	if (ImGui::Button("Join##client-name-button")) {
 		roomInputCallback();
+	}
+
+	if (ImGui::Hotkey("Chat Keybind", &chatKeybind)) {
+		Settings::SetSetting("client", "chatKeybind", chatKeybind);
 	}
 
 	ImGui::Text("Chat");
@@ -668,12 +677,22 @@ static void MultiplayerTab() {
 }
 
 bool Client::Initialize() {
+	client.Name = Settings::GetSetting("client", "name", "anonymous").get<std::string>();
+	strncpy(nameInput, client.Name.c_str(), sizeof(nameInput) - 1);
+
+	room = Settings::GetSetting("client", "room", "lobby").get<std::string>();
+	strncpy(roomInput, room.c_str(), sizeof(roomInput) - 1);
+
+	client.Character = Settings::GetSetting("client", "character", Engine::Character::Faith).get<Engine::Character>();
+
+	chatKeybind = Settings::GetSetting("client", "chatKeybind", 0x54);
+
 	Menu::AddTab("Multiplayer", MultiplayerTab);
 	Engine::OnTick(OnTick);
 	Engine::OnRenderScene(OnRender);
 
 	Engine::OnInput([](int msg, int keycode) {
-		if (!chat.Focused && msg == WM_KEYDOWN && keycode == 0x54) {
+		if (!chat.Focused && msg == WM_KEYDOWN && keycode == chatKeybind) {
 			chat.Focused = true;
 			Engine::BlockInput(true);
 		}

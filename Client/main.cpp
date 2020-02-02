@@ -13,7 +13,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
 		static_cast<VOID>(freopen("CONOUT$", "w", stdout));
 		static_cast<VOID>(freopen("CONOUT$", "w", stderr));
 
-		Addon *addons[] = { new Client(), new Dolly(), new Trainer() };
+		Addon *addons[] = { new Client(), new Trainer(), new Dolly() };
 
 		if (!Engine::Initialize()) {
 			MessageBoxA(0, "Failed to initialize engine", "Fatal", 0);
@@ -24,11 +24,10 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
 			MessageBoxA(0, "Failed to initialize menu", "Fatal", 0);
 			return TRUE;
 		}
-
+		
 		for (auto &addon : addons) {
 			if (!addon->Initialize()) {
 				MessageBoxA(0, ("Failed to initialize \"" + addon->GetName() + "\"").c_str(), "Fatal", 0);
-				return TRUE;
 			}
 		}
 	}
