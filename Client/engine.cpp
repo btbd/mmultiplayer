@@ -1,7 +1,6 @@
 #include "stdafx.h"
 
-/*** Hook originals and callbacks ***/
-// D3D9 and Window
+// D3D9 and window hooks
 static struct {
 	std::vector<RenderSceneCallback> Callbacks;
 	HRESULT(WINAPI *Original)(IDirect3DDevice9 *) = nullptr;
@@ -21,7 +20,7 @@ static struct {
 	BOOL(WINAPI *PeekMessage)(LPMSG, HWND, UINT, UINT, UINT) = nullptr;
 } window;
 
-// Engine
+// Engine hooks
 static struct {
 	std::vector<std::wstring> Queue;
 	std::mutex Mutex;
@@ -71,8 +70,7 @@ static struct {
 	void(__thiscall *Original)(float *, int, float) = nullptr;
 } tick;
 
-/*** Hook implementations ***/
-// D3D9
+// D3D9 and window hook implementations
 LRESULT CALLBACK WndProcHook(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 HRESULT WINAPI EndSceneHook(IDirect3DDevice9 *device) {
 	static bool init = true;
@@ -194,7 +192,7 @@ BOOL WINAPI PeekMessageHook(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMs
 	return ret;
 }
 
-// Engine
+// Engine hook implementations
 int __fastcall ProcessEventHook(Classes::UObject *object, void *idle, class Classes::UFunction *function, void *args, void *result) {
 	auto sum = 0;
 	for (auto callback : processEvent.Callbacks) {
@@ -714,7 +712,6 @@ void Engine::BlockInput(bool block) {
 bool Engine::Initialize() {
 	void *ptr = nullptr;
 
-	/*** SDK ***/
 	// GNames
 	if (!(ptr = Pattern::FindPattern("\x8B\x0D\x00\x00\x00\x00\x8B\x84\x24\x00\x00\x00\x00\x8B\x04\x81", "xx????xxx????xxx"))) {
 		MessageBoxA(0, "Failed to find GNames", "Failure", MB_ICONERROR);
@@ -731,14 +728,13 @@ bool Engine::Initialize() {
 
 	Classes::UObject::GObjects = reinterpret_cast<decltype(Classes::UObject::GObjects)>(*reinterpret_cast<void **>(reinterpret_cast<byte *>(ptr) + 2));
 
-	/*** D3D9 Hooks ***/
 	// EndScene
 	if (!(ptr = Pattern::FindPattern("d3d9.dll", "\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx"))) {
 		MessageBoxA(0, "Failed to find D3D9 exports", "Failure", MB_ICONERROR);
 		return false;
 	}
 
-	ptr = *(void **)((byte *)ptr + 2);
+	ptr = *reinterpret_cast<void **>(reinterpret_cast<byte *>(ptr) + 2);
 	if (!Hook::TrampolineHook(EndSceneHook, ((void **)ptr)[D3D9_EXPORT_ENDSCENE], reinterpret_cast<void **>(&renderScene.Original))) {
 		MessageBoxA(0, "Failed to hook D3D9 EndScene", "Failure", MB_ICONERROR);
 		return false;
@@ -756,7 +752,6 @@ bool Engine::Initialize() {
 		return false;
 	}
 
-	/*** Engine Hooks ***/
 	// ProcessEvent
 	if (!(ptr = Pattern::FindPattern("\x56\x8B\xF1\x8B\x0D\x00\x00\x00\x00\x85\xC9\x74\x09", "xxxxx????xxxx"))) {
 		MessageBoxA(0, "Failed to find ProcessEvent", "Failure", MB_ICONERROR);

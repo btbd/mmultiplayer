@@ -23,12 +23,13 @@ json Settings::GetSetting(const char *menu, const char *key, json defaultValue) 
 		settings[menu] = json::object();
 	}
 
-	if (settings[menu][key].is_null() || settings[menu][key].type() != defaultValue.type()) {
-		settings[menu][key] = defaultValue;
+	auto &v = settings[menu][key];
+	if (v.is_null() || (v.type() != defaultValue.type() && v.is_number() != defaultValue.is_number())) {
+		v = defaultValue;
 		Settings::Save();
 	}
 
-	return settings[menu][key];
+	return v;
 }
 
 void Settings::Load() {

@@ -4,24 +4,24 @@ static char roomInput[0xFF] = { 0 };
 static char nameInput[0xFF] = { 0 };
 static char chatInput[0x200] = { 0 };
 
-static auto connected = false, loading = false, showNameTags = true, showChatOverlay = true;
+static auto connected = false, loading = false;
 static std::string room;
+
 static sockaddr_in server = { 0 };
 static SOCKET tcpSocket = 0, udpSocket = 0;
-static int chatKeybind = 0;
 
 static struct {
-	bool Focused = false;
+	bool Focused = false, ShowOverlay = true;
+	int Keybind = 0;
 	std::string Raw;
 	unsigned long long LastTime;
 	std::mutex Mutex;
 } chat;
 
-static Client::Player client = {
-	0, Engine::Character::Faith, std::string(nameInput),
-};
+static Client::Player client = { 0 };
 
 static struct {
+	bool ShowNameTags = true;
 	std::vector<Client::Player *> List;
 	std::shared_mutex Mutex;
 } players;
@@ -503,7 +503,7 @@ static void OnRender(IDirect3DDevice9 *device) {
 	static const auto inputHeightOffset = 50.0f;
 	static const auto inputWidthOffset = 50.0f;
 
-	if (showNameTags) {
+	if (players.ShowNameTags) {
 		auto window = ImGui::BeginRawScene("##client-backbuffer-nametags");
 		players.Mutex.lock_shared();
 
@@ -536,7 +536,7 @@ static void OnRender(IDirect3DDevice9 *device) {
 
 	auto opacity = 1.0f;
 	if (!chat.Focused) {
-		if (showChatOverlay) {
+		if (chat.ShowOverlay) {
 			auto diff = static_cast<float>(GetTickCount64() - chat.LastTime) / 1000.0f;
 			if (diff > 5.0f) {
 				opacity = max(0, 1.0f - (diff - 5.0f));
@@ -658,18 +658,18 @@ static void MultiplayerTab() {
 		roomInputCallback();
 	}
 
-	if (ImGui::Hotkey("Chat Keybind##client-chat-keybind", &chatKeybind)) {
-		Settings::SetSetting("client", "chatKeybind", chatKeybind);
+	if (ImGui::Hotkey("Chat Keybind##client-chat-keybind", &chat.Keybind)) {
+		Settings::SetSetting("client", "chatKeybind", chat.Keybind);
 	}
 
-	if (ImGui::Checkbox("Show Nametags##client-show-nametags", &showNameTags)) {
-		Settings::SetSetting("client", "showNameTags", showNameTags);
+	if (ImGui::Checkbox("Show Nametags##client-show-nametags", &players.ShowNameTags)) {
+		Settings::SetSetting("client", "showNameTags", players.ShowNameTags);
 	}
 
 	ImGui::SameLine();
 
-	if (ImGui::Checkbox("Show Chat Overlay##client-show-chat", &showChatOverlay)) {
-		Settings::SetSetting("client", "showChatOverlay", showChatOverlay);
+	if (ImGui::Checkbox("Show Chat Overlay##client-show-chat", &chat.ShowOverlay)) {
+		Settings::SetSetting("client", "showChatOverlay", chat.ShowOverlay);
 	}
 
 	ImGui::Text("Chat");
@@ -699,6 +699,7 @@ static void MultiplayerTab() {
 }
 
 bool Client::Initialize() {
+	// Settings
 	client.Name = Settings::GetSetting("client", "name", "anonymous").get<std::string>();
 	strncpy(nameInput, client.Name.c_str(), sizeof(nameInput) - 1);
 
@@ -707,17 +708,18 @@ bool Client::Initialize() {
 
 	client.Character = Settings::GetSetting("client", "character", Engine::Character::Faith).get<Engine::Character>();
 
-	chatKeybind = Settings::GetSetting("client", "chatKeybind", 0x54);
+	chat.Keybind = Settings::GetSetting("client", "chatKeybind", 0x54);
 
-	showNameTags = Settings::GetSetting("client", "showNameTags", true);
-	showChatOverlay = Settings::GetSetting("client", "showChatOverlay", true);
+	players.ShowNameTags = Settings::GetSetting("client", "showNameTags", true);
+	chat.ShowOverlay = Settings::GetSetting("client", "showChatOverlay", true);
 
+	// Functions
 	Menu::AddTab("Multiplayer", MultiplayerTab);
 	Engine::OnTick(OnTick);
 	Engine::OnRenderScene(OnRender);
 
 	Engine::OnInput([](int msg, int keycode) {
-		if (!chat.Focused && msg == WM_KEYDOWN && keycode == chatKeybind) {
+		if (!chat.Focused && msg == WM_KEYDOWN && keycode == chat.Keybind) {
 			chat.Focused = true;
 			Engine::BlockInput(true);
 		}
