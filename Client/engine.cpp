@@ -81,6 +81,7 @@ HRESULT WINAPI EndSceneHook(IDirect3DDevice9 *device) {
 		device->GetCreationParameters(&params);
 
 		ImGui::CreateContext();
+		ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\verdana.ttf", 14.0f);
 		ImGui_ImplWin32_Init(params.hFocusWindow);
 		ImGui_ImplDX9_Init(device);
 
@@ -544,6 +545,7 @@ void Engine::Despawn(Classes::AActor *actor) {
 	}
 
 	actor->SetHidden(true);
+	actor->SetTimer(0.01f, false, "DestroyPawn", actor);
 }
 
 void Engine::TransformBones(Character character, Classes::TArray<Classes::FBoneAtom> *destBones, Classes::FBoneAtom *src) {
@@ -620,7 +622,7 @@ D3DXVECTOR4 *WINAPI D3DXVec4Transform(D3DXVECTOR4 *pOut, const D3DXVECTOR4 *pV, 
 }
 
 bool Engine::IsKeyDown(int vk) {
-	return vk >= 0 && vk < LENGTH(window.KeysDown) && window.KeysDown[vk];
+	return !window.BlockInput && vk >= 0 && vk < LENGTH(window.KeysDown) && window.KeysDown[vk];
 }
 
 bool Engine::WorldToScreen(IDirect3DDevice9 *device, Classes::FVector &inOutLocation) {

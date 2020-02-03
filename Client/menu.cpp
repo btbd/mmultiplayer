@@ -7,6 +7,7 @@ void RenderMenu(IDirect3DDevice9 *device) {
 	if (show) {
 		ImGui::Begin("MMultiplayer");
 		ImGui::BeginTabBar("");
+		ImGui::SetWindowFocus();
 
 		for (auto tab : tabs) {
 			if (ImGui::BeginTabItem(tab.Name->c_str())) {

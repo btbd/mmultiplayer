@@ -4,7 +4,7 @@ static char roomInput[0xFF] = { 0 };
 static char nameInput[0xFF] = { 0 };
 static char chatInput[0x200] = { 0 };
 
-static auto connected = false, loading = false;
+static auto connected = false, loading = false, showNameTags = true, showChatOverlay = true;
 static std::string room;
 static sockaddr_in server = { 0 };
 static SOCKET tcpSocket = 0, udpSocket = 0;
@@ -102,7 +102,7 @@ static bool SendJsonMessage(json msg) {
 }
 
 static void AddChatMessage(std::string message) {
-	static const auto maxMessages = 200;
+	static const auto maxMessages = 100;
 
 	SYSTEMTIME time;
 	GetLocalTime(&time);
@@ -503,41 +503,46 @@ static void OnRender(IDirect3DDevice9 *device) {
 	static const auto inputHeightOffset = 50.0f;
 	static const auto inputWidthOffset = 50.0f;
 
-	auto window = ImGui::BeginRawScene("##client-backbuffer-nametags");
-	players.Mutex.lock_shared();
+	if (showNameTags) {
+		auto window = ImGui::BeginRawScene("##client-backbuffer-nametags");
+		players.Mutex.lock_shared();
 
-	for (auto p : players.List) {
-		if (p->Pawn && p->Level == client.Level) {
-			Classes::FBox boundingBox;
-			p->Pawn->GetComponentsBoundingBox(&boundingBox);
+		for (auto p : players.List) {
+			if (p->Pawn && p->Level == client.Level) {
+				Classes::FBox boundingBox;
+				p->Pawn->GetComponentsBoundingBox(&boundingBox);
 
-			auto pos = p->Pawn->Location;
-			pos.Z = boundingBox.Max.Z;
+				auto pos = p->Pawn->Location;
+				pos.Z = boundingBox.Max.Z;
 
-			if (Engine::WorldToScreen(device, pos)) {
-				auto size = ImGui::CalcTextSize(p->Name.c_str());
-				auto topLeft = ImVec2(pos.X - size.x / 2.0f, pos.Y - size.y);
+				if (Engine::WorldToScreen(device, pos)) {
+					auto size = ImGui::CalcTextSize(p->Name.c_str());
+					auto topLeft = ImVec2(pos.X - size.x / 2.0f, pos.Y - size.y);
 
-				window->DrawList->AddRectFilled(topLeft, ImVec2(pos.X + size.x / 2.0f, pos.Y), ImColor(ImVec4(0, 0, 0, 0.4f)));
-				window->DrawList->AddText(topLeft, ImColor(ImVec4(1, 1, 1, 1)), p->Name.c_str());
+					window->DrawList->AddRectFilled(topLeft, ImVec2(pos.X + size.x / 2.0f, pos.Y), ImColor(ImVec4(0, 0, 0, 0.4f)));
+					window->DrawList->AddText(topLeft, ImColor(ImVec4(1, 1, 1, 1)), p->Name.c_str());
+				}
 			}
 		}
+
+		players.Mutex.unlock_shared();
+		ImGui::EndRawScene();
 	}
 
-	players.Mutex.unlock_shared();
-	ImGui::EndRawScene();
-
-	window = ImGui::BeginRawScene("##client-backbuffer-chat");
-
+	auto window = ImGui::BeginRawScene("##client-backbuffer-chat");
 	auto &io = ImGui::GetIO();
 
 	auto width = io.DisplaySize.x / 3.0f;
 
 	auto opacity = 1.0f;
 	if (!chat.Focused) {
-		auto diff = static_cast<float>(GetTickCount64() - chat.LastTime) / 1000.0f;
-		if (diff > 5.0f) {
-			opacity = max(0, 1.0f - (diff - 5.0f));
+		if (showChatOverlay) {
+			auto diff = static_cast<float>(GetTickCount64() - chat.LastTime) / 1000.0f;
+			if (diff > 5.0f) {
+				opacity = max(0, 1.0f - (diff - 5.0f));
+			}
+		} else {
+			opacity = 0.0f;
 		}
 	}
 
@@ -548,6 +553,7 @@ static void OnRender(IDirect3DDevice9 *device) {
 		auto pos = ImVec2(inputWidthOffset, io.DisplaySize.y - inputHeightOffset - height);
 
 		ImGui::SetWindowPos(pos, ImGuiCond_Always);
+		ImGui::SetWindowSize(ImVec2(window->Size.x, max(window->Size.y, height)));
 
 		window->DrawList->AddRectFilled(pos, ImVec2(pos.x + width, pos.y + height), ImColor(ImVec4(0, 0, 0, 0.4f * opacity)));
 	
@@ -592,7 +598,9 @@ static void MultiplayerTab() {
 		}
 	};
 	
-	if (ImGui::InputText("Name##client-input", nameInput, sizeof(nameInput), ImGuiInputTextFlags_EnterReturnsTrue)) {
+	ImGui::Text("Name");
+	ImGui::SameLine();
+	if (ImGui::InputText("##client-name-input", nameInput, sizeof(nameInput), ImGuiInputTextFlags_EnterReturnsTrue)) {
 		nameInputCallback();
 	}
 
@@ -601,6 +609,8 @@ static void MultiplayerTab() {
 		nameInputCallback();
 	}
 
+	ImGui::Text("Character");
+	ImGui::SameLine();
 	static auto selectedCharacter = Engine::Characters[0];
 	if (ImGui::BeginCombo("##dolly-character", selectedCharacter)) {
 		for (auto i = 0; i < IM_ARRAYSIZE(Engine::Characters); ++i) {
@@ -637,17 +647,29 @@ static void MultiplayerTab() {
 		}
 	};
 
-	if (ImGui::InputText("Room##client-input", roomInput, sizeof(roomInput), ImGuiInputTextFlags_EnterReturnsTrue)) {
+	ImGui::Text("Room");
+	ImGui::SameLine();
+	if (ImGui::InputText("##client-room-input", roomInput, sizeof(roomInput), ImGuiInputTextFlags_EnterReturnsTrue)) {
 		roomInputCallback();
 	}
 
 	ImGui::SameLine();
-	if (ImGui::Button("Join##client-name-button")) {
+	if (ImGui::Button("Join##client-room-button")) {
 		roomInputCallback();
 	}
 
-	if (ImGui::Hotkey("Chat Keybind", &chatKeybind)) {
+	if (ImGui::Hotkey("Chat Keybind##client-chat-keybind", &chatKeybind)) {
 		Settings::SetSetting("client", "chatKeybind", chatKeybind);
+	}
+
+	if (ImGui::Checkbox("Show Nametags##client-show-nametags", &showNameTags)) {
+		Settings::SetSetting("client", "showNameTags", showNameTags);
+	}
+
+	ImGui::SameLine();
+
+	if (ImGui::Checkbox("Show Chat Overlay##client-show-chat", &showChatOverlay)) {
+		Settings::SetSetting("client", "showChatOverlay", showChatOverlay);
 	}
 
 	ImGui::Text("Chat");
@@ -686,6 +708,9 @@ bool Client::Initialize() {
 	client.Character = Settings::GetSetting("client", "character", Engine::Character::Faith).get<Engine::Character>();
 
 	chatKeybind = Settings::GetSetting("client", "chatKeybind", 0x54);
+
+	showNameTags = Settings::GetSetting("client", "showNameTags", true);
+	showChatOverlay = Settings::GetSetting("client", "showChatOverlay", true);
 
 	Menu::AddTab("Multiplayer", MultiplayerTab);
 	Engine::OnTick(OnTick);

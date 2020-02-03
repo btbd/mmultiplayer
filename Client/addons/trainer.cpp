@@ -135,8 +135,11 @@ static void Save(Trainer::Save &save, Classes::ATdPlayerPawn *pawn, Classes::ATd
 }
 
 static void Load(Trainer::Save &save, Classes::ATdPlayerPawn *pawn, Classes::ATdPlayerController *controller) {
-	pawn->EndState("None");
-	controller->EndState("None");
+	pawn->InitialState = "Walking";
+	pawn->SetInitialState();
+	controller->InitialState = "PlayerWalking";
+	controller->SetInitialState();
+	
 	pawn->StopAllCustomAnimations(0.0f);
 	pawn->SetMove(save.Pawn.MovementState, true, false);
 
