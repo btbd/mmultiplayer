@@ -202,7 +202,7 @@ int __fastcall ProcessEventHook(Classes::UObject *object, void *idle, class Clas
 	return sum == 0 ? processEvent.Original(object, function, args, result) : 0;
 }
 
-int __fastcall LevelLoadHook(void *this_, void *idle_, void **levelInfo, unsigned long long arg) {
+int __fastcall LevelLoadHook(void *this_, void *idle, void **levelInfo, unsigned long long arg) {
 	auto levelName = reinterpret_cast<const wchar_t *>(levelInfo[7]);
 
 	for (auto callback : levelLoad.PreCallbacks) {
@@ -248,7 +248,7 @@ void *__fastcall ActorTickHook(Classes::AActor *actor, void *idle, void *arg) {
 	return ret;
 }
 
-void *__fastcall BonesTickHook(void *this_, void *idle_, Classes::TArray<Classes::FBoneAtom> *bones, void *arg3, void *arg4, void *arg5) {
+void *__fastcall BonesTickHook(void *this_, void *idle, Classes::TArray<Classes::FBoneAtom> *bones, void *arg3, void *arg4, void *arg5) {
 	auto ret = bonesTick.Original(this_, bones, arg3, arg4, arg5);
 
 	for (auto callback : bonesTick.Callbacks) {

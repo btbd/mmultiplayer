@@ -140,6 +140,8 @@ static void FixPlayer() {
 				r.Pawn->Location = { 0 };
 			}
 		}
+
+		pawn->EnterFallingHeight = -1e30f;
 	}
 }
 
@@ -296,9 +298,7 @@ static void DollyTab() {
 
 			ImGui::Text("Recording %d - %s (%d - %d)", i, Engine::Characters[static_cast<size_t>(rec.Character)], rec.StartFrame, rec.StartFrame + rec.Frames.size() - 1);
 
-			char labelBuffer[0xFF];
-			sprintf_s(labelBuffer, sizeof(labelBuffer), "##dolly-recording-%d", i);
-			std::string label(labelBuffer);
+			auto label = "##dolly-recording-" + std::to_string(i);
 
 			ImGui::SameLine();
 			if (ImGui::Button(("Move" + label).c_str())) {

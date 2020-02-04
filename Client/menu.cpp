@@ -1,6 +1,6 @@
 #include "stdafx.h"
 
-static auto show = false;
+static auto show = false, showPlayerInfo = false;
 static std::vector<MenuTab> tabs;
 static int showKeybind = 0;
 
@@ -18,6 +18,59 @@ static void RenderMenu(IDirect3DDevice9 *device) {
 
 		ImGui::EndTabBar();
 		ImGui::End();
+	}
+
+	if (showPlayerInfo) {
+		auto pawn = Engine::GetPlayerPawn();
+		auto controller = Engine::GetPlayerController();
+
+		if (pawn && controller) {
+			static const auto rightPadding = 100.0f;
+			static const auto padding = 5.0f;
+
+			auto window = ImGui::BeginRawScene("##player-debug-info");
+
+			auto &io = ImGui::GetIO();
+			auto width = io.DisplaySize.x - padding;
+
+			auto yIncrement = ImGui::GetTextLineHeight();
+			auto y = io.DisplaySize.y - (7 * yIncrement) - padding;
+			auto color = ImColor(ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+
+			window->DrawList->AddRectFilled(ImVec2(width - rightPadding - padding, y - padding), io.DisplaySize, ImColor(ImVec4(0, 0, 0, 0.4f)));
+
+			char buffer[0x200] = { 0 };
+
+			sprintf_s(buffer, "%.2f", pawn->Location.X / 100.0f);
+			window->DrawList->AddText(ImVec2(width - ImGui::CalcTextSize(buffer, nullptr, false).x, y), color, buffer);
+			window->DrawList->AddText(ImVec2(width - rightPadding, y), color, "X");
+
+			sprintf_s(buffer, "%.2f", pawn->Location.Y / 100.0f);
+			window->DrawList->AddText(ImVec2(width - ImGui::CalcTextSize(buffer, nullptr, false).x, y += yIncrement), color, buffer);
+			window->DrawList->AddText(ImVec2(width - rightPadding, y), color, "Y");
+
+			sprintf_s(buffer, "%.2f", pawn->Location.Z / 100.0f);
+			window->DrawList->AddText(ImVec2(width - ImGui::CalcTextSize(buffer, nullptr, false).x, y += yIncrement), color, buffer);
+			window->DrawList->AddText(ImVec2(width - rightPadding, y), color, "Z");
+
+			sprintf_s(buffer, "%.2f", sqrtf(powf(pawn->Velocity.X, 2) + powf(pawn->Velocity.Y, 2)) * 0.036f);
+			window->DrawList->AddText(ImVec2(width - ImGui::CalcTextSize(buffer, nullptr, false).x, y += yIncrement), color, buffer);
+			window->DrawList->AddText(ImVec2(width - rightPadding, y), color, "V");
+
+			sprintf_s(buffer, "%.2f", (static_cast<float>(controller->Rotation.Pitch % 0x10000) / static_cast<float>(0x10000)) * 360.0f);
+			window->DrawList->AddText(ImVec2(width - ImGui::CalcTextSize(buffer, nullptr, false).x, y += yIncrement), color, buffer);
+			window->DrawList->AddText(ImVec2(width - rightPadding, y), color, "RX");
+
+			sprintf_s(buffer, "%.2f", (static_cast<float>(controller->Rotation.Yaw % 0x10000) / static_cast<float>(0x10000)) * 360.0f);
+			window->DrawList->AddText(ImVec2(width - ImGui::CalcTextSize(buffer, nullptr, false).x, y += yIncrement), color, buffer);
+			window->DrawList->AddText(ImVec2(width - rightPadding, y), color, "RY");
+
+			sprintf_s(buffer, "%d", pawn->MovementState.GetValue());
+			window->DrawList->AddText(ImVec2(width - ImGui::CalcTextSize(buffer, nullptr, false).x, y += yIncrement), color, buffer);
+			window->DrawList->AddText(ImVec2(width - rightPadding, y), color, "S");
+
+			ImGui::EndRawScene();
+		}
 	}
 }
 
@@ -104,14 +157,8 @@ static void WorldTab() {
 }
 
 void PlayerTab() {
-	auto controller = Engine::GetPlayerController();
-	if (!controller) {
-		return;
-	}
-
-	auto pawn = Engine::GetPlayerPawn();
-	if (!pawn) {
-		return;
+	if (ImGui::Checkbox("Show Player Info", &showPlayerInfo)) {
+		Settings::SetSetting("player", "showInfo", showPlayerInfo);
 	}
 }
 
@@ -125,6 +172,7 @@ namespace Menu {
 
 	bool Initialize() {
 		showKeybind = Settings::GetSetting("menu", "showKeybind", VK_INSERT);
+		showPlayerInfo = Settings::GetSetting("player", "showInfo", false);
 
 		Engine::OnRenderScene(RenderMenu);
 

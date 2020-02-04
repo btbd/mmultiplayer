@@ -218,6 +218,10 @@ static bool Join() {
 		}
 
 		client.Level = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(world->GetMapName(false).c_str());
+
+		if (client.Level == "TdMainMenu") {
+			loading = true;
+		}
 	}
 
 	if (!SendJsonMessage({
@@ -775,16 +779,18 @@ bool Client::Initialize() {
 	});
 
 	Engine::OnPostLevelLoad([](const wchar_t *) {
-		players.Mutex.lock_shared();
+		if (client.Level != "TdMainMenu") {
+			players.Mutex.lock_shared();
 
-		for (auto &p : players.List) {
-			if (!p->Pawn && p->Level == client.Level) {
-				Engine::SpawnCharacter(p->Character, p->Pawn);
+			for (auto &p : players.List) {
+				if (!p->Pawn && p->Level == client.Level) {
+					Engine::SpawnCharacter(p->Character, p->Pawn);
+				}
 			}
-		}
 
-		loading = false;
-		players.Mutex.unlock_shared();
+			loading = false;
+			players.Mutex.unlock_shared();
+		}
 
 		if (connected) {
 			SendJsonMessage({
