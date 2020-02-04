@@ -1,0 +1,357 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Header Files\sdk">
+      <UniqueIdentifier>{25fccb63-09d3-4c9e-8096-4368c71452c0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\util">
+      <UniqueIdentifier>{c8d5d95f-60ef-435c-843d-f99fcb0d7418}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\imgui">
+      <UniqueIdentifier>{61a8c71f-ba6a-4654-8bbe-d062f6ca4692}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Source Files\util">
+      <UniqueIdentifier>{3e27b3ed-9f52-433f-91f5-c26812da9927}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sdk">
+      <UniqueIdentifier>{90014758-83f6-4fe5-90ee-3a7786637332}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\imgui">
+      <UniqueIdentifier>{de3a21d4-1cf5-4438-b254-66369edbec2a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\addons">
+      <UniqueIdentifier>{78e177e8-1b0e-4bbd-b22d-192ed0d7b535}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\addons">
+      <UniqueIdentifier>{b5dd9396-45e2-4559-a7b7-e19e6779427a}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stdafx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_ALAudio_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_ALAudio_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_ALAudio_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Basic.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Core_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Core_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Core_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Editor_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Editor_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Editor_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Engine_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Engine_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Engine_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Fp_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Fp_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Fp_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_GameFramework_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_GameFramework_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_GameFramework_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_IpDrv_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_IpDrv_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_IpDrv_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_OnlineSubsystemPC_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_OnlineSubsystemPC_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_OnlineSubsystemPC_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdEditor_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdEditor_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdEditor_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdGame_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdGame_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdGame_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdSharedContent_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdSharedContent_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdSharedContent_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdTTContent_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdTTContent_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdTTContent_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdTuContent_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdTuContent_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_TdTuContent_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Tp_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Tp_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Tp_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Ts_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Ts_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_Ts_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_UnrealEd_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_UnrealEd_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_UnrealEd_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_WinDrv_classes.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_WinDrv_parameters.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="SDK\ME_WinDrv_structs.hpp">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="pattern.h">
+      <Filter>Header Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="hook.h">
+      <Filter>Header Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="engine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imgui_impl_win32.h">
+      <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imgui_internal.h">
+      <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imstb_rectpack.h">
+      <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imstb_textedit.h">
+      <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imstb_truetype.h">
+      <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imconfig.h">
+      <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imgui.h">
+      <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="imgui\imgui_impl_dx9.h">
+      <Filter>Header Files\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="sdk.h">
+      <Filter>Header Files\sdk</Filter>
+    </ClInclude>
+    <ClInclude Include="menu.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="addon.h">
+      <Filter>Header Files\addons</Filter>
+    </ClInclude>
+    <ClInclude Include="json.h">
+      <Filter>Header Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="settings.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="addons\client.h">
+      <Filter>Header Files\addons</Filter>
+    </ClInclude>
+    <ClInclude Include="addons\dolly.h">
+      <Filter>Header Files\addons</Filter>
+    </ClInclude>
+    <ClInclude Include="addons\trainer.h">
+      <Filter>Header Files\addons</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="pattern.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="hook.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="engine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_ALAudio_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_Basic.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_Core_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_Editor_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_Engine_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_Fp_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_IpDrv_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_GameFramework_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_OnlineSubsystemPC_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_TdGame_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_TdEditor_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_TdSharedContent_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_TdTTContent_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_TdTuContent_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_Tp_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_Ts_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_UnrealEd_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="SDK\ME_WinDrv_functions.cpp">
+      <Filter>Source Files\sdk</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui\imgui.cpp">
+      <Filter>Source Files\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui\imgui_draw.cpp">
+      <Filter>Source Files\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui\imgui_impl_dx9.cpp">
+      <Filter>Source Files\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui\imgui_impl_win32.cpp">
+      <Filter>Source Files\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="imgui\imgui_widgets.cpp">
+      <Filter>Source Files\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="menu.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="settings.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="addons\client.cpp">
+      <Filter>Source Files\addons</Filter>
+    </ClCompile>
+    <ClCompile Include="addons\dolly.cpp">
+      <Filter>Source Files\addons</Filter>
+    </ClCompile>
+    <ClCompile Include="addons\trainer.cpp">
+      <Filter>Source Files\addons</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
