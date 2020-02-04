@@ -1,6 +1,6 @@
 #include "../stdafx.h"
 
-static auto enabled = false, god = false, kg = false, beamer = false, strang = false;
+static auto enabled = false, overlay = true, god = false, kg = false, beamer = false, strang = false;
 static int saveKeybind = 0, loadKeybind = 0, godKeybind = 0, kgKeybind = 0, beamerKeybind = 0, strangKeybind = 0;
 
 static struct {
@@ -275,6 +275,10 @@ static void TrainerTab() {
 		return;
 	}
 
+	if (ImGui::Checkbox("Overlay##trainer-overlay", &overlay)) {
+		Settings::SetSetting("trainer", "overlay", overlay);
+	}
+
 	if (ImGui::Hotkey("Save##trainer-save", &saveKeybind)) {
 		Settings::SetSetting("trainer", "saveKeybind", saveKeybind);
 	}
@@ -317,6 +321,31 @@ static void TrainerTab() {
 
 	if (ImGui::Hotkey("Strang##trainer-strang", &strangKeybind)) {
 		Settings::SetSetting("trainer", "strangKeybind", strangKeybind);
+	}
+}
+
+static void OnRender(IDirect3DDevice9 *) {
+	if (!enabled || !overlay) {
+		return;
+	}
+
+	std::string text = strang ? "Strang " : "";
+	text += beamer ? "Beamer " : "";
+	text += kg ? "KG " : "";
+	text += fly.Enabled ? "Fly " : "";
+	text += god ? "God " : "";
+
+	if (text != "") {
+		static const auto padding = 5.0f;
+
+		auto window = ImGui::BeginRawScene("##client-backbuffer-nametags");
+		auto &io = ImGui::GetIO();
+		auto width = ImGui::CalcTextSize(text.c_str(), nullptr, false).x;
+
+		window->DrawList->AddRectFilled(ImVec2(io.DisplaySize.x - width - padding, 0), ImVec2(io.DisplaySize.x, ImGui::GetTextLineHeight()), ImColor(ImVec4(0, 0, 0, 0.4f)));
+		window->DrawList->AddText(ImVec2(io.DisplaySize.x - width, 0), ImColor(ImVec4(1.0f, 1.0f, 1.0f, 1.0f)), text.c_str());
+
+		ImGui::EndRawScene();
 	}
 }
 
@@ -430,6 +459,7 @@ void __fastcall StateHandlerHook(void *pawn, void *idle, float delta, int change
 bool Trainer::Initialize() {
 	// Settings
 	enabled = Settings::GetSetting("trainer", "enabled", false);
+	overlay = Settings::GetSetting("trainer", "overlay", true);
 	saveKeybind = Settings::GetSetting("trainer", "saveKeybind", 0x34);
 	loadKeybind = Settings::GetSetting("trainer", "loadKeybind", 0x35);
 	godKeybind = Settings::GetSetting("trainer", "godKeybind", 0x31);
@@ -445,6 +475,7 @@ bool Trainer::Initialize() {
 	// Functions
 	Menu::AddTab("Trainer", TrainerTab);
 	Engine::OnTick(OnTick);
+	Engine::OnRenderScene(OnRender);
 
 	Engine::OnPreDeath([]() {
 		kg = beamer = false;
@@ -458,6 +489,25 @@ bool Trainer::Initialize() {
 		if (msg == WM_KEYDOWN) {
 			if (keycode == godKeybind) {
 				god = !god;
+				
+				if (god) {
+					auto pawn = Engine::GetPlayerPawn();
+					auto controller = Engine::GetPlayerController();
+					if (pawn && controller && pawn->MovementState == Classes::EMovement::MOVE_FallingUncontrolled) {
+						pawn->InitialState = "Walking";
+						pawn->SetInitialState();
+						controller->InitialState = "PlayerWalking";
+						controller->SetInitialState();
+
+						pawn->StopAllCustomAnimations(0.0f);
+						pawn->SetMove(Classes::EMovement::MOVE_Falling, true, false);
+						pawn->SetIgnoreLookInput(false);
+						pawn->SetIgnoreMoveInput(false);
+						controller->IgnoreButtonInput(false);
+						controller->IgnoreLookInput(false);
+						controller->IgnoreMoveInput(false);
+					}
+				}
 			}
 
 			if (keycode == fly.Keybind) {
