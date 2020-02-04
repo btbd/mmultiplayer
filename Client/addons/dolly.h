@@ -7,12 +7,14 @@ public:
 
 	class Marker {
 	public:
-		inline Marker(int frame, Classes::FVector position, Classes::FVector rotation) :
+		inline Marker(int frame, float fov, Classes::FVector position, Classes::FVector rotation) :
 			Frame{ frame },
+			FOV{ fov },
 			Position { position },
 			Rotation{ rotation } {}
 		
 		int Frame;
+		float FOV;
 		Classes::FVector Position;
 		Classes::FVector Rotation;
 	};

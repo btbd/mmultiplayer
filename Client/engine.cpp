@@ -373,7 +373,7 @@ Classes::ATdPlayerPawn *SpawnCharacter(Engine::Character character) {
 
 void __fastcall TickHook(float *scales, void *idle, int arg, float delta) {
 	if (Engine::GetPlayerPawn(true)) {
-		// Queues must be executed inside the context of an engine thread
+		// Queues must be executed inside the context of an engine thread in sync with a tick
 		if (commands.Queue.size() > 0) {
 			auto console = Engine::GetConsole();
 

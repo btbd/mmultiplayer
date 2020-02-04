@@ -117,7 +117,8 @@ static void ShiftTimeline(int amount) {
 
 static void FixPlayer() {
 	auto pawn = Engine::GetPlayerPawn();
-	if (!pawn) {
+	auto controller = Engine::GetPlayerController();
+	if (!pawn || !controller) {
 		return;
 	}
 
@@ -129,8 +130,9 @@ static void FixPlayer() {
 	pawn->Mesh1p->SetHidden(hide);
 	pawn->Mesh1pLowerBody->SetHidden(hide);
 	pawn->Mesh3p->SetHidden(hide);
-	pawn->Controller->bCanBeDamaged = !hide;
 	pawn->bCollideWorld = !hide;
+	controller->bCanBeDamaged = !hide;
+	controller->FOVAngle = controller->DesiredFOV = controller->DefaultFOV;
 
 	if (!hide) {
 		for (auto &r : recordings) {
@@ -142,6 +144,12 @@ static void FixPlayer() {
 }
 
 static void DollyTab() {
+	auto pawn = Engine::GetPlayerPawn();
+	auto controller = Engine::GetPlayerController();
+	if (!pawn || !controller) {
+		return;
+	}
+
 	if (playing) {
 		if (ImGui::Button("Stop##dolly")) {
 			playing = false;
@@ -209,9 +217,8 @@ static void DollyTab() {
 
 	ImGui::SameLine();
 	if (ImGui::Button("Add Marker##dolly")) {
-		auto pawn = Engine::GetPlayerPawn();
-		if (pawn) {
-			Dolly::Marker marker(frame, pawn->Location, RotatorToVector(pawn->Controller->Rotation));
+		if (pawn && controller) {
+			Dolly::Marker marker(frame, controller->FOVAngle, pawn->Location, RotatorToVector(pawn->Controller->Rotation));
 
 			auto replaced = false;
 			for (auto &m : markers) {
@@ -241,6 +248,10 @@ static void DollyTab() {
 
 	ImGui::SliderInt("Timeline##dolly", &frame, 0, duration, highlights, markers.size());
 	delete[] highlights;
+
+	if (ImGui::SliderFloat("FOV##dolly", &controller->DesiredFOV, 0, 160) && !cameraView) {
+		controller->FOVAngle = controller->DesiredFOV;
+	}
 
 	if (ImGui::CollapsingHeader("Markers##dolly")) {
 		for (auto i = 0UL; i < markers.size(); ++i) {
@@ -318,8 +329,9 @@ static void DollyTab() {
 
 static void OnTick(float) {
 	auto pawn = Engine::GetPlayerPawn();
+	auto controller = Engine::GetPlayerController();
 
-	if (pawn) {
+	if (pawn && controller) {
 		if (playing || cameraView) {
 			if (markers.size() == 1) {
 				auto &m = markers[0];
@@ -330,6 +342,7 @@ static void OnTick(float) {
 					auto &m0 = markers[i];
 					if (m0.Frame <= frame) {
 						if (i == markers.size() - 1) {
+							controller->FOVAngle = controller->DesiredFOV = m0.FOV;
 							pawn->Location = m0.Position;
 							pawn->Controller->Rotation = VectorToRotator(m0.Rotation);
 						} else {
@@ -354,8 +367,17 @@ static void OnTick(float) {
 								(&rot.X)[r] = Interpolate(static_cast<float>(m0.Frame), static_cast<float>(m1.Frame), GetMarkerField(i, fieldOffset), GetMarkerField(i + 1, fieldOffset), s0, s1, static_cast<float>(frame));
 							}
 
+							controller->FOVAngle = controller->DesiredFOV = Interpolate(
+								static_cast<float>(m0.Frame),
+								static_cast<float>(m1.Frame),
+								GetMarkerField(i, FIELD_OFFSET(Dolly::Marker, FOV)),
+								GetMarkerField(i + 1, FIELD_OFFSET(Dolly::Marker, FOV)),
+								Slope(i, FIELD_OFFSET(Dolly::Marker, FOV)),
+								Slope(i + 1, FIELD_OFFSET(Dolly::Marker, FOV)),
+								static_cast<float>(frame));
+							
 							pawn->Location = pos;
-							pawn->Controller->Rotation = VectorToRotator(rot);
+							controller->Rotation = VectorToRotator(rot);
 						}
 
 						break;
@@ -411,7 +433,7 @@ static void OnRender(IDirect3DDevice9 *device) {
 			for (auto i = 0UL; i < markers.size() - 1; ++i) {
 				auto &m0 = markers[i];
 				auto &m1 = markers[i + 1];
-
+				
 				float s0[3];
 				float s1[3];
 				for (auto p = 0; p < 3; ++p) {

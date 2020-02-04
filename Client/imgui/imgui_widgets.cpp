@@ -7625,7 +7625,7 @@ ImGuiWindow *ImGui::BeginRawScene(const char *name) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
-    ImGui::Begin(name, nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize);
+    ImGui::Begin(name, nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus);
 
     auto &io = ImGui::GetIO();
     ImGui::SetWindowPos(ImVec2(0, 0), ImGuiCond_Always);
@@ -7658,9 +7658,9 @@ static const char *VK_TO_KEY[] = {
     "Enter", // d
     "", // e
     "", // f
-    "", // 10
-    "", // 11
-    "", // 12
+    "Shift", // 10
+    "Control", // 11
+    "Alt", // 12
     "Pause", // 13
     "CAPSLOCK", // 14
     "", // 15

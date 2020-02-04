@@ -503,8 +503,9 @@ static void OnRender(IDirect3DDevice9 *device) {
 	static const auto inputHeightOffset = 50.0f;
 	static const auto inputWidthOffset = 50.0f;
 
+	// Create the window anyways so ImGui doesn't set focus priority
+	auto window = ImGui::BeginRawScene("##client-backbuffer-nametags");
 	if (players.ShowNameTags) {
-		auto window = ImGui::BeginRawScene("##client-backbuffer-nametags");
 		players.Mutex.lock_shared();
 
 		for (auto p : players.List) {
@@ -526,10 +527,10 @@ static void OnRender(IDirect3DDevice9 *device) {
 		}
 
 		players.Mutex.unlock_shared();
-		ImGui::EndRawScene();
 	}
+	ImGui::EndRawScene();
 
-	auto window = ImGui::BeginRawScene("##client-backbuffer-chat");
+	window = ImGui::BeginRawScene("##client-backbuffer-chat");
 	auto &io = ImGui::GetIO();
 
 	auto width = io.DisplaySize.x / 3.0f;
@@ -612,7 +613,7 @@ static void MultiplayerTab() {
 	ImGui::Text("Character");
 	ImGui::SameLine();
 	static auto selectedCharacter = Engine::Characters[0];
-	if (ImGui::BeginCombo("##dolly-character", selectedCharacter)) {
+	if (ImGui::BeginCombo("##client-character", selectedCharacter)) {
 		for (auto i = 0; i < IM_ARRAYSIZE(Engine::Characters); ++i) {
 			auto c = Engine::Characters[i];
 			auto s = (c == selectedCharacter);

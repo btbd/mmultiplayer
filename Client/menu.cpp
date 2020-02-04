@@ -2,12 +2,12 @@
 
 static auto show = false;
 static std::vector<MenuTab> tabs;
+static int showKeybind = 0;
 
-void RenderMenu(IDirect3DDevice9 *device) {
+static void RenderMenu(IDirect3DDevice9 *device) {
 	if (show) {
 		ImGui::Begin("MMultiplayer");
 		ImGui::BeginTabBar("");
-		ImGui::SetWindowFocus();
 
 		for (auto tab : tabs) {
 			if (ImGui::BeginTabItem(tab.Name->c_str())) {
@@ -22,7 +22,11 @@ void RenderMenu(IDirect3DDevice9 *device) {
 }
 
 /*** Basic Tabs ***/
-void EngineTab() {
+static void EngineTab() {
+	if (ImGui::Hotkey("Menu Keybind##menu-show", &showKeybind)) {
+		Settings::SetSetting("menu", "showKeybind", showKeybind);
+	}
+
 	auto engine = Engine::GetEngine();
 	if (!engine) {
 		return;
@@ -43,35 +47,35 @@ void EngineTab() {
 	}
 
 	ImGui::SameLine();
-	if (ImGui::Button("Execute Comamnd")) {
+	if (ImGui::Button("Execute Comamnd##engine-execute-command")) {
 		commandInputCallback();
 	}
 
 	bool check = engine->bSmoothFrameRate;
-	ImGui::Checkbox("Smooth Framerate", &check);
+	ImGui::Checkbox("Smooth Framerate##engine-smooth-framerate", &check);
 	engine->bSmoothFrameRate = check;
 	if (check) {
-		ImGui::InputFloat("Min Smoothed Framerate", &engine->MinSmoothedFrameRate);
-		ImGui::InputFloat("Max Smoothed Framerate", &engine->MaxSmoothedFrameRate);
+		ImGui::InputFloat("Min Smoothed Framerate##engine-max-smoothed", &engine->MinSmoothedFrameRate);
+		ImGui::InputFloat("Max Smoothed Framerate##engine-min-smoothed", &engine->MaxSmoothedFrameRate);
 	}
 
 	auto client = engine->Client;
 	if (client) {
-		ImGui::InputFloat("Gamma", &client->DisplayGamma);
+		ImGui::InputFloat("Gamma##engine-gamma", &client->DisplayGamma);
 	}
 }
 
-void WorldTab() {
+static void WorldTab() {
 	auto world = Engine::GetWorld();
 	if (!world) {
 		return;
 	}
 
-	ImGui::InputFloat("Time Dilation", &world->TimeDilation);
-	ImGui::InputFloat("Gravity", &world->WorldGravityZ);
+	ImGui::InputFloat("Time Dilation##world-time-dilation", &world->TimeDilation);
+	ImGui::InputFloat("Gravity##-world-gravity", &world->WorldGravityZ);
 
 	auto levels = world->StreamingLevels;
-	if (ImGui::TreeNode("world#levels", "%ws (%d)", world->GetMapName(false).c_str(), levels.Num())) {
+	if (ImGui::TreeNode("world##world-levels", "%ws (%d)", world->GetMapName(false).c_str(), levels.Num())) {
 		for (DWORD i = 0; i < levels.Num(); ++i) {
 			auto level = levels.GetByIndex(i);
 			if (level) {
@@ -111,17 +115,19 @@ namespace Menu {
 	}
 
 	bool Initialize() {
+		showKeybind = Settings::GetSetting("menu", "showKeybind", VK_INSERT);
+
 		Engine::OnRenderScene(RenderMenu);
 
 		Engine::OnInput([](int msg, int keycode) {
-			if (!show && msg == WM_KEYUP && keycode == VK_INSERT) {
+			if (!show && msg == WM_KEYUP && keycode == showKeybind) {
 				show = true;
 				Engine::BlockInput(true);
 			}
 		});
 
 		Engine::OnSuperInput([](int msg, int keycode) {
-			if (show && msg == WM_KEYUP && keycode == VK_INSERT) {
+			if (show && msg == WM_KEYUP && keycode == showKeybind) {
 				show = false;
 				Engine::BlockInput(false);
 			}

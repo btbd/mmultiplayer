@@ -1,7 +1,14 @@
 #include "../stdafx.h"
 
-static auto enabled = false, god = false, fly = false, kg = false, beamer = false, strang = false;
-static int saveKeybind = 0, loadKeybind = 0, godKeybind = 0, flyKeybind = 0, kgKeybind = 0, beamerKeybind = 0, strangKeybind = 0;
+static auto enabled = false, god = false, kg = false, beamer = false, strang = false;
+static int saveKeybind = 0, loadKeybind = 0, godKeybind = 0, kgKeybind = 0, beamerKeybind = 0, strangKeybind = 0;
+
+static struct {
+	bool Enabled = false;
+	int Keybind = 0, UpKeybind = 0, DownKeybind = 0, FasterKeybind = 0, SlowerKeybind = 0;
+	Classes::FVector Location, Velocity;
+	float Speed = 10.0f;
+} fly;
 
 static void Save(Trainer::Save &save, Classes::ATdPlayerPawn *pawn, Classes::ATdPlayerController *controller) {
 	save.Pawn.bExludeHandMoves = pawn->bExludeHandMoves; save.Pawn.bExludeFootMoves = pawn->bExludeFootMoves; save.Pawn.bPhysXMutatable = pawn->bPhysXMutatable; save.Pawn.bStatic = pawn->bStatic; save.Pawn.bHidden = pawn->bHidden; save.Pawn.bNoDelete = pawn->bNoDelete; save.Pawn.bDeleteMe = pawn->bDeleteMe; save.Pawn.bTicked = pawn->bTicked; save.Pawn.bOnlyOwnerSee = pawn->bOnlyOwnerSee; save.Pawn.bStasis = pawn->bStasis; save.Pawn.bWorldGeometry = pawn->bWorldGeometry; save.Pawn.bIgnoreRigidBodyPawns = pawn->bIgnoreRigidBodyPawns; save.Pawn.bOrientOnSlope = pawn->bOrientOnSlope; save.Pawn.bIgnoreEncroachers = pawn->bIgnoreEncroachers; save.Pawn.bPushedByEncroachers = pawn->bPushedByEncroachers; save.Pawn.bDestroyedByInterpActor = pawn->bDestroyedByInterpActor; save.Pawn.bRouteBeginPlayEvenIfStatic = pawn->bRouteBeginPlayEvenIfStatic; save.Pawn.bIsMoving = pawn->bIsMoving; save.Pawn.bAlwaysEncroachCheck = pawn->bAlwaysEncroachCheck; save.Pawn.bHasAlternateTargetLocation = pawn->bHasAlternateTargetLocation; save.Pawn.bNetTemporary = pawn->bNetTemporary; save.Pawn.bOnlyRelevantToOwner = pawn->bOnlyRelevantToOwner; save.Pawn.bNetDirty = pawn->bNetDirty; save.Pawn.bAlwaysRelevant = pawn->bAlwaysRelevant; save.Pawn.bReplicateInstigator = pawn->bReplicateInstigator; save.Pawn.bReplicateMovement = pawn->bReplicateMovement; save.Pawn.bSkipActorPropertyReplication = pawn->bSkipActorPropertyReplication; save.Pawn.bUpdateSimulatedPosition = pawn->bUpdateSimulatedPosition; save.Pawn.bTearOff = pawn->bTearOff; save.Pawn.bOnlyDirtyReplication = pawn->bOnlyDirtyReplication; save.Pawn.bDemoRecording = pawn->bDemoRecording; save.Pawn.bDemoOwner = pawn->bDemoOwner; save.Pawn.bForceDemoRelevant = pawn->bForceDemoRelevant; save.Pawn.bNetInitialRotation = pawn->bNetInitialRotation; save.Pawn.bReplicateRigidBodyLocation = pawn->bReplicateRigidBodyLocation; save.Pawn.bKillDuringLevelTransition = pawn->bKillDuringLevelTransition; save.Pawn.bExchangedRoles = pawn->bExchangedRoles; save.Pawn.bConsiderAllStaticMeshComponentsForStreaming = pawn->bConsiderAllStaticMeshComponentsForStreaming; save.Pawn.bIgnoreForAITraces = pawn->bIgnoreForAITraces; save.Pawn.bInteractable = pawn->bInteractable; save.Pawn.bLOIObject = pawn->bLOIObject; save.Pawn.bDebug = pawn->bDebug; save.Pawn.bPostRenderIfNotVisible = pawn->bPostRenderIfNotVisible; save.Pawn.bForceNetUpdate = pawn->bForceNetUpdate; save.Pawn.bPendingNetUpdate = pawn->bPendingNetUpdate; save.Pawn.bHardAttach = pawn->bHardAttach; save.Pawn.bIgnoreBaseRotation = pawn->bIgnoreBaseRotation; save.Pawn.bShadowParented = pawn->bShadowParented; save.Pawn.bCanBeAdheredTo = pawn->bCanBeAdheredTo; save.Pawn.bCanBeFrictionedTo = pawn->bCanBeFrictionedTo; save.Pawn.bHurtEntry = pawn->bHurtEntry; save.Pawn.bGameRelevant = pawn->bGameRelevant; save.Pawn.bMovable = pawn->bMovable; save.Pawn.bDestroyInPainVolume = pawn->bDestroyInPainVolume; save.Pawn.bCanBeDamaged = pawn->bCanBeDamaged; save.Pawn.bShouldBaseAtStartup = pawn->bShouldBaseAtStartup; save.Pawn.bPendingDelete = pawn->bPendingDelete; save.Pawn.bCanTeleport = pawn->bCanTeleport; save.Pawn.bAlwaysTick = pawn->bAlwaysTick; save.Pawn.bBlocksNavigation = pawn->bBlocksNavigation; save.Pawn.BlockRigidBody = pawn->BlockRigidBody; save.Pawn.bCollideWhenPlacing = pawn->bCollideWhenPlacing; save.Pawn.bCollideActors = pawn->bCollideActors; save.Pawn.bCollideWorld = pawn->bCollideWorld; save.Pawn.bCollideComplex = pawn->bCollideComplex; save.Pawn.bBlockActors = pawn->bBlockActors; save.Pawn.bProjTarget = pawn->bProjTarget; save.Pawn.bBlocksTeleport = pawn->bBlocksTeleport; save.Pawn.bNoEncroachCheck = pawn->bNoEncroachCheck; save.Pawn.bPhysRigidBodyOutOfWorldCheck = pawn->bPhysRigidBodyOutOfWorldCheck; save.Pawn.bComponentOutsideWorld = pawn->bComponentOutsideWorld; save.Pawn.bBounce = pawn->bBounce; save.Pawn.bJustTeleported = pawn->bJustTeleported; save.Pawn.bNetInitial = pawn->bNetInitial; save.Pawn.bNetOwner = pawn->bNetOwner; save.Pawn.bHiddenEd = pawn->bHiddenEd; save.Pawn.bHiddenEdGroup = pawn->bHiddenEdGroup; save.Pawn.bHiddenEdCustom = pawn->bHiddenEdCustom; save.Pawn.bEdShouldSnap = pawn->bEdShouldSnap; save.Pawn.bTempEditor = pawn->bTempEditor; save.Pawn.bPathColliding = pawn->bPathColliding; save.Pawn.bPathTemp = pawn->bPathTemp; save.Pawn.bScriptInitialized = pawn->bScriptInitialized; save.Pawn.bLockLocation = pawn->bLockLocation; save.Pawn.CustomTimeDilation = pawn->CustomTimeDilation; save.Pawn.Physics = pawn->Physics; save.Pawn.RemoteRole = pawn->RemoteRole; save.Pawn.Role = pawn->Role; save.Pawn.CollisionType = pawn->CollisionType; save.Pawn.TickGroup = pawn->TickGroup; save.Pawn.NetTag = pawn->NetTag; save.Pawn.NetUpdateTime = pawn->NetUpdateTime; save.Pawn.NetUpdateFrequency = pawn->NetUpdateFrequency; save.Pawn.NetPriority = pawn->NetPriority; save.Pawn.LastNetUpdateTime = pawn->LastNetUpdateTime; save.Pawn.LifeSpan = pawn->LifeSpan; save.Pawn.CreationTime = pawn->CreationTime; save.Pawn.LastRenderTime = pawn->LastRenderTime; save.Pawn.LatentFloat = pawn->LatentFloat; save.Pawn.Location = pawn->Location; save.Pawn.Rotation = pawn->Rotation; save.Pawn.Velocity = pawn->Velocity; save.Pawn.Acceleration = pawn->Acceleration; save.Pawn.AngularVelocity = pawn->AngularVelocity; save.Pawn.RelativeLocation = pawn->RelativeLocation; save.Pawn.RelativeRotation = pawn->RelativeRotation; save.Pawn.DrawScale = pawn->DrawScale; save.Pawn.DrawScale3D = pawn->DrawScale3D; save.Pawn.PrePivot = pawn->PrePivot; save.Pawn.OverlapTag = pawn->OverlapTag; save.Pawn.RotationRate = pawn->RotationRate; save.Pawn.DesiredRotation = pawn->DesiredRotation; save.Pawn.MinDistForNetRBCorrection = pawn->MinDistForNetRBCorrection; save.Pawn.MaxStepHeight = pawn->MaxStepHeight; save.Pawn.MaxJumpHeight = pawn->MaxJumpHeight; save.Pawn.WalkableFloorZ = pawn->WalkableFloorZ; save.Pawn.NetRelevancyTime = pawn->NetRelevancyTime; save.Pawn.bUpAndOut = pawn->bUpAndOut; save.Pawn.bIsWalking = pawn->bIsWalking; save.Pawn.bWantsToCrouch = pawn->bWantsToCrouch; save.Pawn.bIsCrouched = pawn->bIsCrouched; save.Pawn.bTryToUncrouch = pawn->bTryToUncrouch; save.Pawn.bCanCrouch = pawn->bCanCrouch; save.Pawn.bCrawler = pawn->bCrawler; save.Pawn.bReducedSpeed = pawn->bReducedSpeed; save.Pawn.bJumpCapable = pawn->bJumpCapable; save.Pawn.bCanJump = pawn->bCanJump; save.Pawn.bCanWalk = pawn->bCanWalk; save.Pawn.bCanSwim = pawn->bCanSwim; save.Pawn.bCanFly = pawn->bCanFly; save.Pawn.bCanClimbLadders = pawn->bCanClimbLadders; save.Pawn.bCanStrafe = pawn->bCanStrafe; save.Pawn.bAvoidLedges = pawn->bAvoidLedges; save.Pawn.bStopAtLedges = pawn->bStopAtLedges; save.Pawn.bSimulateGravity = pawn->bSimulateGravity; save.Pawn.bIgnoreForces = pawn->bIgnoreForces; save.Pawn.bCanWalkOffLedges = pawn->bCanWalkOffLedges; save.Pawn.bCanBeBaseForPawns = pawn->bCanBeBaseForPawns; save.Pawn.bSimGravityDisabled = pawn->bSimGravityDisabled; save.Pawn.bDirectHitWall = pawn->bDirectHitWall; save.Pawn.bPushesRigidBodies = pawn->bPushesRigidBodies; save.Pawn.bForceFloorCheck = pawn->bForceFloorCheck; save.Pawn.bForceKeepAnchor = pawn->bForceKeepAnchor; save.Pawn.bCanMantle = pawn->bCanMantle; save.Pawn.bCanClimbCeilings = pawn->bCanClimbCeilings; save.Pawn.bCanSwatTurn = pawn->bCanSwatTurn; save.Pawn.bCanLeap = pawn->bCanLeap; save.Pawn.bCanCoverSlip = pawn->bCanCoverSlip; save.Pawn.bDisplayPathErrors = pawn->bDisplayPathErrors; save.Pawn.bIsFemale = pawn->bIsFemale; save.Pawn.bCanPickupInventory = pawn->bCanPickupInventory; save.Pawn.bAmbientCreature = pawn->bAmbientCreature; save.Pawn.bLOSHearing = pawn->bLOSHearing; save.Pawn.bMuffledHearing = pawn->bMuffledHearing; save.Pawn.bDontPossess = pawn->bDontPossess; save.Pawn.bAutoFire = pawn->bAutoFire; save.Pawn.bRollToDesired = pawn->bRollToDesired; save.Pawn.bStationary = pawn->bStationary; save.Pawn.bCachedRelevant = pawn->bCachedRelevant; save.Pawn.bSpecialHUD = pawn->bSpecialHUD; save.Pawn.bNoWeaponFiring = pawn->bNoWeaponFiring; save.Pawn.bCanUse = pawn->bCanUse; save.Pawn.bModifyReachSpecCost = pawn->bModifyReachSpecCost; save.Pawn.bPathfindsAsVehicle = pawn->bPathfindsAsVehicle; save.Pawn.bRunPhysicsWithNoController = pawn->bRunPhysicsWithNoController; save.Pawn.bForceMaxAccel = pawn->bForceMaxAccel; save.Pawn.bForceRMVelocity = pawn->bForceRMVelocity; save.Pawn.bForceRegularVelocity = pawn->bForceRegularVelocity; save.Pawn.bPlayedDeath = pawn->bPlayedDeath; save.Pawn.UncrouchTime = pawn->UncrouchTime; save.Pawn.CrouchHeight = pawn->CrouchHeight; save.Pawn.CrouchRadius = pawn->CrouchRadius; save.Pawn.FullHeight = pawn->FullHeight; save.Pawn.NonPreferredVehiclePathMultiplier = pawn->NonPreferredVehiclePathMultiplier; save.Pawn.PathSearchType = pawn->PathSearchType; save.Pawn.RemoteViewPitch = pawn->RemoteViewPitch; save.Pawn.FlashCount = pawn->FlashCount; save.Pawn.FiringMode = pawn->FiringMode; save.Pawn.DesiredSpeed = pawn->DesiredSpeed; save.Pawn.MaxDesiredSpeed = pawn->MaxDesiredSpeed; save.Pawn.HearingThreshold = pawn->HearingThreshold; save.Pawn.Alertness = pawn->Alertness; save.Pawn.SightRadius = pawn->SightRadius; save.Pawn.PeripheralVision = pawn->PeripheralVision; save.Pawn.AvgPhysicsTime = pawn->AvgPhysicsTime; save.Pawn.Mass = pawn->Mass; save.Pawn.Buoyancy = pawn->Buoyancy; save.Pawn.MeleeRange = pawn->MeleeRange; save.Pawn.FindAnchorFailedTime = pawn->FindAnchorFailedTime; save.Pawn.LastValidAnchorTime = pawn->LastValidAnchorTime; save.Pawn.DestinationOffset = pawn->DestinationOffset; save.Pawn.NextPathRadius = pawn->NextPathRadius; save.Pawn.SerpentineDir = pawn->SerpentineDir; save.Pawn.SerpentineDist = pawn->SerpentineDist; save.Pawn.SerpentineTime = pawn->SerpentineTime; save.Pawn.SpawnTime = pawn->SpawnTime; save.Pawn.MaxPitchLimit = pawn->MaxPitchLimit; save.Pawn.GroundSpeed = pawn->GroundSpeed; save.Pawn.WaterSpeed = pawn->WaterSpeed; save.Pawn.AirSpeed = pawn->AirSpeed; save.Pawn.LadderSpeed = pawn->LadderSpeed; save.Pawn.AccelRate = pawn->AccelRate; save.Pawn.JumpZ = pawn->JumpZ; save.Pawn.OutofWaterZ = pawn->OutofWaterZ; save.Pawn.MaxOutOfWaterStepHeight = pawn->MaxOutOfWaterStepHeight; save.Pawn.AirControl = pawn->AirControl; save.Pawn.WalkingPct = pawn->WalkingPct; save.Pawn.CrouchedPct = pawn->CrouchedPct; save.Pawn.MaxFallSpeed = pawn->MaxFallSpeed; save.Pawn.AIMaxFallSpeedFactor = pawn->AIMaxFallSpeedFactor; save.Pawn.BaseEyeHeight = pawn->BaseEyeHeight; save.Pawn.EyeHeight = pawn->EyeHeight; save.Pawn.Floor = pawn->Floor; save.Pawn.SplashTime = pawn->SplashTime; save.Pawn.OldZ = pawn->OldZ; save.Pawn.Health = pawn->Health; save.Pawn.HealthMax = pawn->HealthMax; save.Pawn.BreathTime = pawn->BreathTime; save.Pawn.UnderWaterTime = pawn->UnderWaterTime; save.Pawn.LastPainTime = pawn->LastPainTime; save.Pawn.RMVelocity = pawn->RMVelocity; save.Pawn.noise1spot = pawn->noise1spot; save.Pawn.noise1time = pawn->noise1time; save.Pawn.noise1loudness = pawn->noise1loudness; save.Pawn.noise2spot = pawn->noise2spot; save.Pawn.noise2time = pawn->noise2time; save.Pawn.noise2loudness = pawn->noise2loudness; save.Pawn.SoundDampening = pawn->SoundDampening; save.Pawn.DamageScaling = pawn->DamageScaling; save.Pawn.LastStartTime = pawn->LastStartTime; save.Pawn.TakeHitLocation = pawn->TakeHitLocation; save.Pawn.TearOffMomentum = pawn->TearOffMomentum; save.Pawn.RBPushRadius = pawn->RBPushRadius; save.Pawn.RBPushStrength = pawn->RBPushStrength; save.Pawn.AlwaysRelevantDistanceSquared = pawn->AlwaysRelevantDistanceSquared; save.Pawn.VehicleCheckRadius = pawn->VehicleCheckRadius; save.Pawn.ViewPitchMin = pawn->ViewPitchMin; save.Pawn.ViewPitchMax = pawn->ViewPitchMax; save.Pawn.AllowedYawError = pawn->AllowedYawError; save.Pawn.FlashLocation = pawn->FlashLocation; save.Pawn.LastFiringFlashLocation = pawn->LastFiringFlashLocation; save.Pawn.ShotCount = pawn->ShotCount; save.Pawn.FailedLandingCount = pawn->FailedLandingCount; save.Pawn.bDisableSkelControlSpring = pawn->bDisableSkelControlSpring; save.Pawn.bCanUnCrouch = pawn->bCanUnCrouch; save.Pawn.bConstrainLook = pawn->bConstrainLook; save.Pawn.bGoingForward = pawn->bGoingForward; save.Pawn.bClimbLeftHand = pawn->bClimbLeftHand; save.Pawn.bClimbDownFast = pawn->bClimbDownFast; save.Pawn.bEnableFootPlacement = pawn->bEnableFootPlacement; save.Pawn.bMoveActionMax = pawn->bMoveActionMax; save.Pawn.bFoundLedgeExcludesHandMoves = pawn->bFoundLedgeExcludesHandMoves; save.Pawn.bFoundLedgeExcludesFootMoves = pawn->bFoundLedgeExcludesFootMoves; save.Pawn.bIsWallWalking = pawn->bIsWallWalking; save.Pawn.bFoundLedge = pawn->bFoundLedge; save.Pawn.bAllowMoveChange = pawn->bAllowMoveChange; save.Pawn.bSRPauseTimer = pawn->bSRPauseTimer; save.Pawn.bForceMaxAccelOneFrame = pawn->bForceMaxAccelOneFrame; save.Pawn.RollTriggerPressed = pawn->RollTriggerPressed; save.Pawn.bUncontrolledSlide = pawn->bUncontrolledSlide; save.Pawn.bIsPlayingSlideEffect = pawn->bIsPlayingSlideEffect; save.Pawn.bAlternateSound = pawn->bAlternateSound; save.Pawn.bCharacterInhaling = pawn->bCharacterInhaling; save.Pawn.bDisableCharacterSounds = pawn->bDisableCharacterSounds; save.Pawn.bTakeFallDamage = pawn->bTakeFallDamage; save.Pawn.bIsUsingRootMotion = pawn->bIsUsingRootMotion; save.Pawn.bIsUsingRootRotation = pawn->bIsUsingRootRotation; save.Pawn.bDebugDamage = pawn->bDebugDamage; save.Pawn.bDebugNetAnim = pawn->bDebugNetAnim; save.Pawn.bNoMoveAnims = pawn->bNoMoveAnims; save.Pawn.bDebugAcceleration = pawn->bDebugAcceleration; save.Pawn.bDebugJumping = pawn->bDebugJumping; save.Pawn.bDebugMovement = pawn->bDebugMovement; save.Pawn.bDebugPlotPath = pawn->bDebugPlotPath; save.Pawn.bDebugFootsteps = pawn->bDebugFootsteps; save.Pawn.bDebugSlapBack = pawn->bDebugSlapBack; save.Pawn.bDebugCharacterSounds = pawn->bDebugCharacterSounds; save.Pawn.bDebugBreathingSounds = pawn->bDebugBreathingSounds; save.Pawn.bDebugWeapons = pawn->bDebugWeapons; save.Pawn.bDebugMaterials = pawn->bDebugMaterials; save.Pawn.VelocityMagnitude2D = pawn->VelocityMagnitude2D; save.Pawn.VelocityMagnitude = pawn->VelocityMagnitude; save.Pawn.VelocityDir2D = pawn->VelocityDir2D; save.Pawn.VelocityDir = pawn->VelocityDir; save.Pawn.FaceRotationTimeLeft = pawn->FaceRotationTimeLeft; save.Pawn.BecameReadyTime = pawn->BecameReadyTime; save.Pawn.AmountTilUnarmed = pawn->AmountTilUnarmed; save.Pawn.GravityModifier = pawn->GravityModifier; save.Pawn.GravityModifierTimer = pawn->GravityModifierTimer; save.Pawn.AgainstWallState = pawn->AgainstWallState; save.Pawn.WeaponAnimState = pawn->WeaponAnimState; save.Pawn.AnimLockRefCount = pawn->AnimLockRefCount; save.Pawn.RootMotionRefCount = pawn->RootMotionRefCount; save.Pawn.CurrentGrabTurnType = pawn->CurrentGrabTurnType; save.Pawn.LadderType = pawn->LadderType; save.Pawn.AnimationMovementState = pawn->AnimationMovementState; save.Pawn.PendingAnimationMovementState = pawn->PendingAnimationMovementState; save.Pawn.OldMovementState = pawn->OldMovementState; save.Pawn.PendingMovementState = pawn->PendingMovementState; save.Pawn.MovementState = pawn->MovementState; save.Pawn.ReplicatedMovementState = pawn->ReplicatedMovementState; save.Pawn.AIAimOldMovementState = pawn->AIAimOldMovementState; save.Pawn.OverrideWalkingState = pawn->OverrideWalkingState; save.Pawn.PendingOverrideWalkingState = pawn->PendingOverrideWalkingState; save.Pawn.CurrentWalkingState = pawn->CurrentWalkingState; save.Pawn.ReplicateCustomAnimCount = pawn->ReplicateCustomAnimCount; save.Pawn.MoveActionHint = pawn->MoveActionHint; save.Pawn.ReloadCount = pawn->ReloadCount; save.Pawn.NoOfBreathingSounds = pawn->NoOfBreathingSounds; save.Pawn.AgainstWallLeftHand = pawn->AgainstWallLeftHand; save.Pawn.AgainstWallRightHand = pawn->AgainstWallRightHand; save.Pawn.AgainstWallNormal = pawn->AgainstWallNormal; save.Pawn.MinLookConstraint = pawn->MinLookConstraint; save.Pawn.MaxLookConstraint = pawn->MaxLookConstraint; save.Pawn.LegRotationSlowTimer = pawn->LegRotationSlowTimer; save.Pawn.LegRotation = pawn->LegRotation; save.Pawn.LegRotationSpeed = pawn->LegRotationSpeed; save.Pawn.GoBackLegAngleLimitMin = pawn->GoBackLegAngleLimitMin; save.Pawn.GoBackLegAngleLimitMax = pawn->GoBackLegAngleLimitMax; save.Pawn.LegAngleLimitFudge = pawn->LegAngleLimitFudge; save.Pawn.SneakVelocity = pawn->SneakVelocity; save.Pawn.WalkVelocity = pawn->WalkVelocity; save.Pawn.JogVelocity = pawn->JogVelocity; save.Pawn.RunVelocity = pawn->RunVelocity; save.Pawn.SprintVelocity = pawn->SprintVelocity; save.Pawn.AverageSpeed = pawn->AverageSpeed; save.Pawn.ASFilterTime = pawn->ASFilterTime; save.Pawn.ASPollInterval = pawn->ASPollInterval; save.Pawn.ASPollTimer = pawn->ASPollTimer; save.Pawn.ASPollSlots = pawn->ASPollSlots; save.Pawn.ASSlotPointer = pawn->ASSlotPointer; save.Pawn.ASDistanceAccum = pawn->ASDistanceAccum; save.Pawn.NewFloorSmooth = pawn->NewFloorSmooth; save.Pawn.SmoothOffset = pawn->SmoothOffset; save.Pawn.FootPlacementStoredRotation = pawn->FootPlacementStoredRotation; save.Pawn.TargetMeshTranslationZ = pawn->TargetMeshTranslationZ; save.Pawn.SlideStoppedTimeStamp = pawn->SlideStoppedTimeStamp; save.Pawn.MoveLocation = pawn->MoveLocation; save.Pawn.MoveNormal = pawn->MoveNormal; save.Pawn.MaxWallStepHeight = pawn->MaxWallStepHeight; save.Pawn.MoveLedgeLocation = pawn->MoveLedgeLocation; save.Pawn.MoveLedgeNormal = pawn->MoveLedgeNormal; save.Pawn.MoveLedgeResult = pawn->MoveLedgeResult; save.Pawn.LedgeFindExtent = pawn->LedgeFindExtent; save.Pawn.LedgeFindDistance = pawn->LedgeFindDistance; save.Pawn.LedgeFindDepth = pawn->LedgeFindDepth; save.Pawn.IllegalLedgeNormal = pawn->IllegalLedgeNormal; save.Pawn.bIllegalLedgeTimer = pawn->bIllegalLedgeTimer; save.Pawn.ActiveMoveTimer = pawn->ActiveMoveTimer; save.Pawn.RemoteViewYaw = pawn->RemoteViewYaw; save.Pawn.EvadeTimer = pawn->EvadeTimer; save.Pawn.SpeedMaxBaseVelocity = pawn->SpeedMaxBaseVelocity; save.Pawn.SpeedMinBaseVelocity = pawn->SpeedMinBaseVelocity; save.Pawn.SpeedStrafeVelocityAccelerationFactor = pawn->SpeedStrafeVelocityAccelerationFactor; save.Pawn.SpeedWalkVelocityAccelerationFactor = pawn->SpeedWalkVelocityAccelerationFactor; save.Pawn.SpeedSprintVelocityAccelerationFactor = pawn->SpeedSprintVelocityAccelerationFactor; save.Pawn.SpeedEnergyDecelerationTime = pawn->SpeedEnergyDecelerationTime; save.Pawn.SpeedEnergyDecelerationExponent = pawn->SpeedEnergyDecelerationExponent; save.Pawn.SpeedTurnDecelerationFactor = pawn->SpeedTurnDecelerationFactor; save.Pawn.SpeedSprintEnergy = pawn->SpeedSprintEnergy; save.Pawn.UpwardWalkFrictionScale = pawn->UpwardWalkFrictionScale; save.Pawn.DownwardWalkFrictionScale = pawn->DownwardWalkFrictionScale; save.Pawn.MinWalkFrictionModify = pawn->MinWalkFrictionModify; save.Pawn.MaxWalkFrictionModify = pawn->MaxWalkFrictionModify; save.Pawn.UpwardSlideFrictionScale = pawn->UpwardSlideFrictionScale; save.Pawn.DownwardSlideFrictionScale = pawn->DownwardSlideFrictionScale; save.Pawn.BrakingFrictionStrength = pawn->BrakingFrictionStrength; save.Pawn.SoftLockStrength = pawn->SoftLockStrength; save.Pawn.RollTriggerTime = pawn->RollTriggerTime; save.Pawn.UncontrolledSlideNormal = pawn->UncontrolledSlideNormal; save.Pawn.FallingUncontrolledHeight = pawn->FallingUncontrolledHeight; save.Pawn.EnterFallingHeight = pawn->EnterFallingHeight; save.Pawn.SlideEffectUpdateTimer = pawn->SlideEffectUpdateTimer; save.Pawn.CustomSoundInput = pawn->CustomSoundInput; save.Pawn.OverrideSynchPosOffset = pawn->OverrideSynchPosOffset; save.Pawn.StreakEffectOverride = pawn->StreakEffectOverride; save.Pawn.StreakEffectDirection = pawn->StreakEffectDirection; save.Pawn.PatchOne = pawn->PatchOne; save.Pawn.PatchTwo = pawn->PatchTwo; save.Pawn.PatchThree = pawn->PatchThree; save.Pawn.PhysicsHitReactionBlendTimer = pawn->PhysicsHitReactionBlendTimer; save.Pawn.PhysicsHitReactionBlendOut = pawn->PhysicsHitReactionBlendOut; save.Pawn.PhysicsHitReactionBlendInTime = pawn->PhysicsHitReactionBlendInTime; save.Pawn.PhysicsHitReactionBlendOutTime = pawn->PhysicsHitReactionBlendOutTime; save.Pawn.PhysicsHitReactionScale = pawn->PhysicsHitReactionScale; save.Pawn.LastDamageTaken = pawn->LastDamageTaken; save.Pawn.ArmorBulletsHead = pawn->ArmorBulletsHead; save.Pawn.ArmorBulletsBody = pawn->ArmorBulletsBody; save.Pawn.ArmorBulletsLegs = pawn->ArmorBulletsLegs; save.Pawn.ArmorMeleeHead = pawn->ArmorMeleeHead; save.Pawn.ArmorMeleeBody = pawn->ArmorMeleeBody; save.Pawn.ArmorMeleeLegs = pawn->ArmorMeleeLegs; save.Pawn.FootstepTraceLength = pawn->FootstepTraceLength; save.Pawn.FootstepTraceWidth = pawn->FootstepTraceWidth; save.Pawn.LastFlybyStamp = pawn->LastFlybyStamp; save.Pawn.MaxHealth = pawn->MaxHealth; save.Pawn.RegenerateDelay = pawn->RegenerateDelay; save.Pawn.RegenerateHealthPerSecond = pawn->RegenerateHealthPerSecond; save.Pawn.UnrealEngineFallDamageScale = pawn->UnrealEngineFallDamageScale; save.Pawn.TimeSinceLastDamage = pawn->TimeSinceLastDamage; save.Pawn.HealthFrac = pawn->HealthFrac; save.Pawn.TaserDamageLevel = pawn->TaserDamageLevel; save.Pawn.RegenerateFromTaserPerSecond = pawn->RegenerateFromTaserPerSecond; save.Pawn.TaserRegenerateDelay = pawn->TaserRegenerateDelay; save.Pawn.TimeSinceLastTaserDamage = pawn->TimeSinceLastTaserDamage; save.Pawn.StunDamageLevel = pawn->StunDamageLevel; save.Pawn.RegenerateFromStunPerSecond = pawn->RegenerateFromStunPerSecond; save.Pawn.MinTimeBeforeRemovingDeadBody = pawn->MinTimeBeforeRemovingDeadBody; save.Pawn.MaxTimeBeforeRemovingDeadBody = pawn->MaxTimeBeforeRemovingDeadBody; save.Pawn.MyPassengerSeatIndex = pawn->MyPassengerSeatIndex; save.Pawn.SlideFactor = pawn->SlideFactor; save.Pawn.LastDamage = pawn->LastDamage; save.Pawn.LastDamageTime = pawn->LastDamageTime; save.Pawn.NextDebugPlotTime = pawn->NextDebugPlotTime; save.Pawn.LastPlotLocation = pawn->LastPlotLocation; save.Pawn.LastJumpLocation = pawn->LastJumpLocation; save.Pawn.bHasMorphNodes = pawn->bHasMorphNodes; save.Pawn.bStuckOnGround = pawn->bStuckOnGround; save.Pawn.bPlayerDiedHoldingTheBag = pawn->bPlayerDiedHoldingTheBag; save.Pawn.bIsInShadowAlteringMoveState = pawn->bIsInShadowAlteringMoveState; save.Pawn.bEnableHairPhysics = pawn->bEnableHairPhysics; save.Pawn.bLockBase = pawn->bLockBase; save.Pawn.bCutsceneIsSkippable = pawn->bCutsceneIsSkippable; save.Pawn.FirstPersonDPG = pawn->FirstPersonDPG; save.Pawn.FirstPersonLowerBodyDPG = pawn->FirstPersonLowerBodyDPG; save.Pawn.VertigoEdgeProbingHeight = pawn->VertigoEdgeProbingHeight; save.Pawn.VertigoEdgeProbingDistance = pawn->VertigoEdgeProbingDistance; save.Pawn.VertigoEffectThreshold = pawn->VertigoEffectThreshold; save.Pawn.EdgeCheckMaxSpeed = pawn->EdgeCheckMaxSpeed; save.Pawn.EdgeCheckDistance = pawn->EdgeCheckDistance; save.Pawn.EdgeStopMinHeight = pawn->EdgeStopMinHeight; save.Pawn.LastEnemyHitTimeOut = pawn->LastEnemyHitTimeOut; save.Pawn.ReverbVolumeTimer = pawn->ReverbVolumeTimer; save.Pawn.ReverbVolumePollTime = pawn->ReverbVolumePollTime; save.Pawn.OcclusionDuckLevel = pawn->OcclusionDuckLevel; save.Pawn.OcclusionDuckFadeTime = pawn->OcclusionDuckFadeTime; save.Pawn.IndoorSoundGroupIndex = pawn->IndoorSoundGroupIndex; save.Pawn.IndoorMixGroupIndex = pawn->IndoorMixGroupIndex; save.Pawn.OutdoorMixGroupIndex = pawn->OutdoorMixGroupIndex; save.Pawn.MovementStringAllowedGap = pawn->MovementStringAllowedGap; save.Pawn.MovementStringGapTimer = pawn->MovementStringGapTimer; save.Pawn.PlayerBulletDamageMultiplier = pawn->PlayerBulletDamageMultiplier; save.Pawn.FocusLocation = pawn->FocusLocation; save.Pawn.PlayerCameraLocation = pawn->PlayerCameraLocation; save.Pawn.PlayerCameraRotation = pawn->PlayerCameraRotation; save.Pawn.DebugPlayerGraph = pawn->DebugPlayerGraph; save.Pawn.LastDebugGraphValue = pawn->LastDebugGraphValue; save.Pawn.SimulatedBadFPS = pawn->SimulatedBadFPS; save.Pawn.FocusLocationInterpolationSpeed = pawn->FocusLocationInterpolationSpeed; save.Pawn.LastResetTimeStamp = pawn->LastResetTimeStamp;
@@ -138,6 +145,13 @@ static void Save(Trainer::Save &save, Classes::ATdPlayerPawn *pawn, Classes::ATd
 }
 
 static void Load(Trainer::Save &save, Classes::ATdPlayerPawn *pawn, Classes::ATdPlayerController *controller) {
+	if (fly.Enabled) {
+		fly.Location = save.Pawn.Location;
+		fly.Velocity = { 0 };
+		controller->Rotation = save.Controller.Rotation;
+		return;
+	}
+
 	pawn->InitialState = "Walking";
 	pawn->SetInitialState();
 	controller->InitialState = "PlayerWalking";
@@ -243,6 +257,11 @@ static void Load(Trainer::Save &save, Classes::ATdPlayerPawn *pawn, Classes::ATd
 	if (wallClimb180TurnJump) {
 		wallClimb180TurnJump->SpeedModifier = save.WallClimb180TurnJump.SpeedModifier; wallClimb180TurnJump->FrictionModifier = save.WallClimb180TurnJump.FrictionModifier; wallClimb180TurnJump->bDebugMove = save.WallClimb180TurnJump.bDebugMove; wallClimb180TurnJump->bTriggersCompliment = save.WallClimb180TurnJump.bTriggersCompliment; wallClimb180TurnJump->bDisableCollision = save.WallClimb180TurnJump.bDisableCollision; wallClimb180TurnJump->bShouldHolsterWeapon = save.WallClimb180TurnJump.bShouldHolsterWeapon; wallClimb180TurnJump->bShouldUnzoom = save.WallClimb180TurnJump.bShouldUnzoom; wallClimb180TurnJump->bIsTimedMove = save.WallClimb180TurnJump.bIsTimedMove; wallClimb180TurnJump->bConstrainLook = save.WallClimb180TurnJump.bConstrainLook; wallClimb180TurnJump->bUseAbsoluteYawConstraint = save.WallClimb180TurnJump.bUseAbsoluteYawConstraint; wallClimb180TurnJump->bDisableActorCollision = save.WallClimb180TurnJump.bDisableActorCollision; wallClimb180TurnJump->bLookAtTargetLocation = save.WallClimb180TurnJump.bLookAtTargetLocation; wallClimb180TurnJump->bLookAtTargetAngle = save.WallClimb180TurnJump.bLookAtTargetAngle; wallClimb180TurnJump->bDisableFaceRotation = save.WallClimb180TurnJump.bDisableFaceRotation; wallClimb180TurnJump->bDisableControllerFacingPawnYawRotation = save.WallClimb180TurnJump.bDisableControllerFacingPawnYawRotation; wallClimb180TurnJump->bAvoidLedges = save.WallClimb180TurnJump.bAvoidLedges; wallClimb180TurnJump->bUsePreciseLocation = save.WallClimb180TurnJump.bUsePreciseLocation; wallClimb180TurnJump->bReachedPreciseLocation = save.WallClimb180TurnJump.bReachedPreciseLocation; wallClimb180TurnJump->bDebugPreciseLocation = save.WallClimb180TurnJump.bDebugPreciseLocation; wallClimb180TurnJump->bUsePreciseRotation = save.WallClimb180TurnJump.bUsePreciseRotation; wallClimb180TurnJump->bReachedPreciseRotation = save.WallClimb180TurnJump.bReachedPreciseRotation; wallClimb180TurnJump->bDelayRotationAndLocationCallback = save.WallClimb180TurnJump.bDelayRotationAndLocationCallback; wallClimb180TurnJump->bResetCameraLook = save.WallClimb180TurnJump.bResetCameraLook; wallClimb180TurnJump->bUseCustomCollision = save.WallClimb180TurnJump.bUseCustomCollision; wallClimb180TurnJump->bUseCameraCollision = save.WallClimb180TurnJump.bUseCameraCollision; wallClimb180TurnJump->bTwoHandedFullBodyAnimations = save.WallClimb180TurnJump.bTwoHandedFullBodyAnimations; wallClimb180TurnJump->bStickyAim = save.WallClimb180TurnJump.bStickyAim; wallClimb180TurnJump->bStopAfterMove = save.WallClimb180TurnJump.bStopAfterMove; wallClimb180TurnJump->bEnableFootPlacement = save.WallClimb180TurnJump.bEnableFootPlacement; wallClimb180TurnJump->bEnableAgainstWall = save.WallClimb180TurnJump.bEnableAgainstWall; wallClimb180TurnJump->bAllowPickup = save.WallClimb180TurnJump.bAllowPickup; wallClimb180TurnJump->AiAimPenalty = save.WallClimb180TurnJump.AiAimPenalty; wallClimb180TurnJump->AiAimOneShotPenalty = save.WallClimb180TurnJump.AiAimOneShotPenalty; wallClimb180TurnJump->MovementGroup = save.WallClimb180TurnJump.MovementGroup; wallClimb180TurnJump->FirstPersonDPG = save.WallClimb180TurnJump.FirstPersonDPG; wallClimb180TurnJump->FirstPersonLowerBodyDPG = save.WallClimb180TurnJump.FirstPersonLowerBodyDPG; wallClimb180TurnJump->PreciseLocationInterpMode = save.WallClimb180TurnJump.PreciseLocationInterpMode; wallClimb180TurnJump->AimMode = save.WallClimb180TurnJump.AimMode; wallClimb180TurnJump->DisableMovementTime = save.WallClimb180TurnJump.DisableMovementTime; wallClimb180TurnJump->DisableLookTime = save.WallClimb180TurnJump.DisableLookTime; wallClimb180TurnJump->LastCanDoMoveTime = save.WallClimb180TurnJump.LastCanDoMoveTime; wallClimb180TurnJump->LastStopMoveTime = save.WallClimb180TurnJump.LastStopMoveTime; wallClimb180TurnJump->MoveActiveTime = save.WallClimb180TurnJump.MoveActiveTime; wallClimb180TurnJump->RedoMoveTime = save.WallClimb180TurnJump.RedoMoveTime; wallClimb180TurnJump->PreciseLocationSpeed = save.WallClimb180TurnJump.PreciseLocationSpeed; wallClimb180TurnJump->PreciseLocation = save.WallClimb180TurnJump.PreciseLocation; wallClimb180TurnJump->PreciseRotationInterpolationTime = save.WallClimb180TurnJump.PreciseRotationInterpolationTime; wallClimb180TurnJump->PreciseRotation = save.WallClimb180TurnJump.PreciseRotation; wallClimb180TurnJump->LookAtTargetLocation = save.WallClimb180TurnJump.LookAtTargetLocation; wallClimb180TurnJump->LookAtTargetAngle = save.WallClimb180TurnJump.LookAtTargetAngle; wallClimb180TurnJump->LookAtTargetInterpolationTime = save.WallClimb180TurnJump.LookAtTargetInterpolationTime; wallClimb180TurnJump->LookAtTargetDuration = save.WallClimb180TurnJump.LookAtTargetDuration; wallClimb180TurnJump->CancelResetCameraLookTime = save.WallClimb180TurnJump.CancelResetCameraLookTime; wallClimb180TurnJump->ResetCameraLookTime = save.WallClimb180TurnJump.ResetCameraLookTime; wallClimb180TurnJump->MinLookConstraint = save.WallClimb180TurnJump.MinLookConstraint; wallClimb180TurnJump->MaxLookConstraint = save.WallClimb180TurnJump.MaxLookConstraint; wallClimb180TurnJump->CustomCollisionRadius = save.WallClimb180TurnJump.CustomCollisionRadius; wallClimb180TurnJump->CustomCollisionHeight = save.WallClimb180TurnJump.CustomCollisionHeight; wallClimb180TurnJump->WeaponInactivePitchAimingLimit = save.WallClimb180TurnJump.WeaponInactivePitchAimingLimit; wallClimb180TurnJump->RootMotionScale = save.WallClimb180TurnJump.RootMotionScale; wallClimb180TurnJump->RootOffset = save.WallClimb180TurnJump.RootOffset; wallClimb180TurnJump->SwanNeckEnableAtPitch = save.WallClimb180TurnJump.SwanNeckEnableAtPitch; wallClimb180TurnJump->SwanNeckForward = save.WallClimb180TurnJump.SwanNeckForward; wallClimb180TurnJump->SwanNeckDown = save.WallClimb180TurnJump.SwanNeckDown; wallClimb180TurnJump->AnimBlendTime = save.WallClimb180TurnJump.AnimBlendTime; wallClimb180TurnJump->StickyAngle = save.WallClimb180TurnJump.StickyAngle; wallClimb180TurnJump->StickyAimedModifier = save.WallClimb180TurnJump.StickyAimedModifier; wallClimb180TurnJump->Timer = save.WallClimb180TurnJump.Timer; wallClimb180TurnJump->PawnPhysics = save.WallClimb180TurnJump.PawnPhysics; wallClimb180TurnJump->HandPlantExtentCheckHeight = save.WallClimb180TurnJump.HandPlantExtentCheckHeight; wallClimb180TurnJump->HandPlantExtentCheckWidth = save.WallClimb180TurnJump.HandPlantExtentCheckWidth; wallClimb180TurnJump->HandPlantCheckDistance = save.WallClimb180TurnJump.HandPlantCheckDistance; wallClimb180TurnJump->HandPlantCheckHeight = save.WallClimb180TurnJump.HandPlantCheckHeight; wallClimb180TurnJump->ContextMoveDistanceMultiplier = save.WallClimb180TurnJump.ContextMoveDistanceMultiplier; wallClimb180TurnJump->bCheckForGrab = save.WallClimb180TurnJump.bCheckForGrab; wallClimb180TurnJump->bCheckForVaultOver = save.WallClimb180TurnJump.bCheckForVaultOver; wallClimb180TurnJump->bCheckForWallClimb = save.WallClimb180TurnJump.bCheckForWallClimb; wallClimb180TurnJump->bCheckForEdgeInVelDir = save.WallClimb180TurnJump.bCheckForEdgeInVelDir; wallClimb180TurnJump->bCheckExitToFalling = save.WallClimb180TurnJump.bCheckExitToFalling; wallClimb180TurnJump->bCheckExitToUncontrolledFalling = save.WallClimb180TurnJump.bCheckExitToUncontrolledFalling; wallClimb180TurnJump->bCheckForSoftLanding = save.WallClimb180TurnJump.bCheckForSoftLanding; wallClimb180TurnJump->bDelayTimeCheckAutoMoves = save.WallClimb180TurnJump.bDelayTimeCheckAutoMoves; wallClimb180TurnJump->ExitToFallingZSpeed = save.WallClimb180TurnJump.ExitToFallingZSpeed; wallClimb180TurnJump->SoftLandingZSpeedThreshold = save.WallClimb180TurnJump.SoftLandingZSpeedThreshold; wallClimb180TurnJump->TimeToSoftLandingThreshold = save.WallClimb180TurnJump.TimeToSoftLandingThreshold; wallClimb180TurnJump->JumpOffZHeight = save.WallClimb180TurnJump.JumpOffZHeight; wallClimb180TurnJump->JumpPushAwaySpeed = save.WallClimb180TurnJump.JumpPushAwaySpeed; wallClimb180TurnJump->JumpTimeWindow = save.WallClimb180TurnJump.JumpTimeWindow; wallClimb180TurnJump->bJumpingFromWall = save.WallClimb180TurnJump.bJumpingFromWall; wallClimb180TurnJump->WantedJumpDir = save.WallClimb180TurnJump.WantedJumpDir;
 	}
+
+	auto world = Engine::GetWorld();
+	if (world) {
+		world->TimeDilation = 1.0f;
+	}
 }
 
 static void TrainerTab() {
@@ -252,6 +271,50 @@ static void TrainerTab() {
 
 	if (!enabled) {
 		return;
+	}
+
+	if (ImGui::Hotkey("Save##trainer-save", &saveKeybind)) {
+		Settings::SetSetting("trainer", "saveKeybind", saveKeybind);
+	}
+
+	if (ImGui::Hotkey("Load##trainer-load", &loadKeybind)) {
+		Settings::SetSetting("trainer", "loadKeybind", loadKeybind);
+	}
+
+	if (ImGui::Hotkey("God##trainer-god", &godKeybind)) {
+		Settings::SetSetting("trainer", "godKeybind", godKeybind);
+	}
+
+	if (ImGui::Hotkey("Fly##trainer-fly", &fly.Keybind)) {
+		Settings::SetSetting("trainer", "flyKeybind", fly.Keybind);
+	}
+
+	if (ImGui::Hotkey("Fly Up##trainer-fly-up", &fly.UpKeybind)) {
+		Settings::SetSetting("trainer", "flyUpKeybind", fly.UpKeybind);
+	}
+
+	if (ImGui::Hotkey("Fly Down##trainer-fly-down", &fly.DownKeybind)) {
+		Settings::SetSetting("trainer", "flyDownKeybind", fly.DownKeybind);
+	}
+
+	if (ImGui::Hotkey("Fly Faster##trainer-fly-faster", &fly.FasterKeybind)) {
+		Settings::SetSetting("trainer", "flyFasterKeybind", fly.FasterKeybind);
+	}
+
+	if (ImGui::Hotkey("Fly Slower##trainer-fly-slower", &fly.SlowerKeybind)) {
+		Settings::SetSetting("trainer", "flySlowerKeybind", fly.SlowerKeybind);
+	}
+
+	if (ImGui::Hotkey("KickGlitch##trainer-kickglitch", &kgKeybind)) {
+		Settings::SetSetting("trainer", "kgKeybind", kgKeybind);
+	}
+
+	if (ImGui::Hotkey("Beamer##trainer-beamer", &beamerKeybind)) {
+		Settings::SetSetting("trainer", "beamerKeybind", beamerKeybind);
+	}
+
+	if (ImGui::Hotkey("Strang##trainer-strang", &strangKeybind)) {
+		Settings::SetSetting("trainer", "strangKeybind", strangKeybind);
 	}
 }
 
@@ -281,12 +344,51 @@ static void OnTick(float) {
 		Load(save, pawn, controller);
 	}
 
-	if (god) {
-
+	if (god || fly.Enabled) {
+		pawn->Health = pawn->MaxHealth;
+		pawn->EnterFallingHeight = -1e30f;
 	}
 
-	if (fly) {
+	if (fly.Enabled) {
+		Classes::FVector input = {
+			controller->PlayerInput->RawJoyUp,
+			controller->PlayerInput->RawJoyRight,
+			static_cast<float>(Engine::IsKeyDown(fly.UpKeybind)) - static_cast<float>(Engine::IsKeyDown(fly.DownKeybind)),
+		};
 
+		float mag = sqrt(input.X * input.X + input.Y * input.Y + input.Z * input.Z);
+		if (mag != 0.0f) {
+			input.X /= mag;
+			input.Y /= mag;
+			input.Z /= mag;
+		}
+
+		static const auto flySpeedIncrement = 0.08f;
+		if (Engine::IsKeyDown(fly.FasterKeybind)) {
+			fly.Speed += flySpeedIncrement;
+		}
+
+		if (Engine::IsKeyDown(fly.SlowerKeybind)) {
+			fly.Speed = max(0.1f, fly.Speed - flySpeedIncrement);
+		}
+
+		auto angle = (static_cast<float>(controller->Rotation.Yaw % 0x10000) / static_cast<float>(0x10000)) * (2 * CONST_Pi);
+		fly.Velocity.X += ((cosf(angle) * input.X) - (sinf(angle) * input.Y)) * fly.Speed;
+		fly.Velocity.Y += ((sinf(angle) * input.X) + (cosf(angle) * input.Y)) * fly.Speed;
+		fly.Velocity.Z += input.Z * fly.Speed;
+
+		fly.Location.X += fly.Velocity.X;
+		fly.Location.Y += fly.Velocity.Y;
+		fly.Location.Z += fly.Velocity.Z;
+
+		pawn->Location = fly.Location;
+		pawn->Velocity = { 0 };
+		pawn->bCollideWorld = false;
+		pawn->Physics = Classes::EPhysics::PHYS_None;
+
+		fly.Velocity.X *= 0.90f;
+		fly.Velocity.Y *= 0.90f;
+		fly.Velocity.Z *= 0.90f;
 	}
 
 	if (kg) {
@@ -298,9 +400,13 @@ static void OnTick(float) {
 		}
 	}
 
-	if (beamer && pawn->MovementState == Classes::EMovement::MOVE_WallClimbing && pawn->VelocityMagnitude2D > 1000.0f) {
-		pawn->SetMove(Classes::EMovement::MOVE_WallClimb180TurnJump, true, true);
-		beamer = false;
+	if (beamer) {
+		if (pawn->MovementState != Classes::EMovement::MOVE_WallClimbing) {
+			beamer = false;
+		} else if (sqrt(powf(pawn->Velocity.X, 2) + powf(pawn->Velocity.Y, 2)) > 1000.0f) {
+			pawn->SetMove(Classes::EMovement::MOVE_WallClimb180TurnJump, true, true);
+			beamer = false;
+		}
 	}
 }
 
@@ -311,7 +417,11 @@ bool Trainer::Initialize() {
 	saveKeybind = Settings::GetSetting("trainer", "saveKeybind", 0x34);
 	loadKeybind = Settings::GetSetting("trainer", "loadKeybind", 0x35);
 	godKeybind = Settings::GetSetting("trainer", "godKeybind", 0x31);
-	flyKeybind = Settings::GetSetting("trainer", "flyKeybind", 0x32);
+	fly.Keybind = Settings::GetSetting("trainer", "flyKeybind", 0x32);
+	fly.UpKeybind = Settings::GetSetting("trainer", "flyUpKeybind", VK_SPACE);
+	fly.DownKeybind = Settings::GetSetting("trainer", "flyDownKeybind", VK_SHIFT);
+	fly.FasterKeybind = Settings::GetSetting("trainer", "flyFasterKeybind", 0x45);
+	fly.SlowerKeybind = Settings::GetSetting("trainer", "flySlowerKeybind", 0x51);
 	kgKeybind = Settings::GetSetting("trainer", "kgKeybind", 0x45);
 	beamerKeybind = Settings::GetSetting("trainer", "beamerKeybind", 0x54);
 	strangKeybind = Settings::GetSetting("trainer", "strangKeybind", 0x52);
@@ -320,26 +430,77 @@ bool Trainer::Initialize() {
 	Menu::AddTab("Trainer", TrainerTab);
 	Engine::OnTick(OnTick);
 
+	Engine::OnPreDeath([]() {
+		kg = beamer = false;
+	});
+
+	Engine::OnPreLevelLoad([](const wchar_t *) {
+		kg = beamer = false;
+	});
+
 	Engine::OnInput([](int msg, int keycode) {
 		if (msg == WM_KEYDOWN) {
 			if (keycode == godKeybind) {
 				god = !god;
 			}
 			
-			if (keycode == flyKeybind) {
-				fly = !fly;
+			if (keycode == fly.Keybind) {
+				fly.Enabled = !fly.Enabled;
+				
+				if (fly.Enabled) {
+					auto pawn = Engine::GetPlayerPawn();
+					auto controller = Engine::GetPlayerController();
+					if (pawn && controller) {
+						pawn->InitialState = "Walking";
+						pawn->SetInitialState();
+						controller->InitialState = "PlayerWalking";
+						controller->SetInitialState();
+
+						pawn->StopAllCustomAnimations(0.0f);
+						pawn->SetMove(Classes::EMovement::MOVE_Falling, true, false);
+						pawn->SetIgnoreLookInput(false);
+						pawn->SetIgnoreMoveInput(false);
+						controller->IgnoreButtonInput(false);
+						controller->IgnoreLookInput(false);
+						controller->IgnoreMoveInput(false);
+
+						fly.Velocity = { 0 };
+						fly.Location = pawn->Location;
+					}
+				} else {
+					auto pawn = Engine::GetPlayerPawn();
+					if (pawn) {
+						static const auto fps = 62.0f;
+						fly.Velocity.X *= fps;
+						fly.Velocity.Y *= fps;
+						fly.Velocity.Z *= fps;
+
+						pawn->Velocity = fly.Velocity;
+						pawn->bCollideWorld = true;
+						pawn->EnterFallingHeight = -1e30f;
+						pawn->Physics = Classes::EPhysics::PHYS_Falling;
+					}
+				}
 			}
 
-			if (keycode == kgKeybind) {
-				kg = true;
-			}
+			if (!fly.Enabled) {
+				if (keycode == kgKeybind) {
+					auto pawn = Engine::GetPlayerPawn();
+					if (pawn) {
+						kg = true;
+					}
+				}
 
-			if (keycode == beamerKeybind) {
-				beamer = true;
-			}
+				if (keycode == beamerKeybind) {
+					auto pawn = Engine::GetPlayerPawn();
+					if (pawn && pawn->MovementState == Classes::EMovement::MOVE_WallClimbing) {
+						beamer = true;
+					}
+				}
 
-			if (keycode == strangKeybind) {
-				strang = true;
+				if (keycode == strangKeybind) {
+					strang = true;
+				}
 			}
 		}
 	});
