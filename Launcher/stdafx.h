@@ -11,4 +11,6 @@
 #include <string>
 #include <thread>
 
+bool HasModule(HANDLE process, const wchar_t *module);
+std::wstring GetDllPath();
 PROCESSENTRY32 GetProcessInfoByName(const wchar_t *name);
