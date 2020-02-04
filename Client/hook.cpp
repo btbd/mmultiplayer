@@ -202,3 +202,29 @@ bool Hook::TrampolineHook(void *dest, void *src, void **original) {
 
 	return true;
 }
+
+bool Hook::UnTrampolineHook(void *src, void *original) {
+	byte length = 0;
+	for (auto inst = reinterpret_cast<byte *>(original); length < JMP_SIZE; ) {
+		byte l = GetInstructionLength(INSTRUCTION_TABLE, inst);
+		if (!l) {
+			return false;
+		}
+
+		inst += l;
+		length += l;
+	}
+
+	DWORD protection = 0;
+	if (!VirtualProtect(src, length, PAGE_EXECUTE_READWRITE, &protection)) {
+		return false;
+	}
+
+	memcpy(src, original, length);
+
+	VirtualProtect(src, length, protection, &protection);
+	VirtualFree(original, 0, MEM_RELEASE);
+
+	original = nullptr;
+	return true;
+}

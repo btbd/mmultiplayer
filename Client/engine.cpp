@@ -20,6 +20,8 @@ static struct {
 	BOOL(WINAPI *PeekMessage)(LPMSG, HWND, UINT, UINT, UINT) = nullptr;
 } window;
 
+static HMODULE(WINAPI *LoadLibraryAOriginal)(const char *) = nullptr;
+
 // Engine hooks
 static struct {
 	std::vector<std::wstring> Queue;
@@ -38,12 +40,15 @@ static struct {
 
 static struct {
 	bool Loading = false;
+	void *Base = nullptr;
 	std::vector<LevelLoadCallback> PreCallbacks;
 	std::vector<LevelLoadCallback> PostCallbacks;
 	int(__thiscall *Original)(void *, void *, unsigned long long arg);
 } levelLoad;
 
 static struct {
+	void *PreBase = nullptr;
+	void *PostBase = nullptr;
 	std::vector<DeathCallback> PreCallbacks;
 	std::vector<DeathCallback> PostCallbacks;
 	int(*PreOriginal)();
@@ -236,6 +241,29 @@ int PostDeathHook() {
 	}
 
 	return ret;
+}
+
+HMODULE WINAPI LoadLibraryAHook(const char *module) {
+	if (strstr(module, "menl_hooks.dll")) {
+		Hook::UnTrampolineHook(levelLoad.Base, levelLoad.Original);
+		Hook::UnTrampolineHook(death.PreBase, death.PreOriginal);
+		Hook::UnTrampolineHook(death.PostBase, death.PostOriginal);
+
+		std::thread([]() {
+			for (;;) {
+				if (*reinterpret_cast<byte *>(death.PostBase) == 0xE9) {
+					Hook::TrampolineHook(LevelLoadHook, levelLoad.Base, reinterpret_cast<void **>(&levelLoad.Original));
+					Hook::TrampolineHook(PreDeathHook, death.PreBase, reinterpret_cast<void **>(&death.PreOriginal));
+					Hook::TrampolineHook(PostDeathHook, death.PostBase, reinterpret_cast<void **>(&death.PostOriginal));
+					return;
+				}
+
+				Sleep(1);
+			}
+		}).detach();
+	}
+
+	return LoadLibraryAOriginal(module);
 }
 
 void *__fastcall ActorTickHook(Classes::AActor *actor, void *idle, void *arg) {
@@ -728,6 +756,9 @@ bool Engine::Initialize() {
 
 	Classes::UObject::GObjects = reinterpret_cast<decltype(Classes::UObject::GObjects)>(*reinterpret_cast<void **>(reinterpret_cast<byte *>(ptr) + 2));
 
+	// LoadLibraryA
+	Hook::TrampolineHook(LoadLibraryAHook, LoadLibraryA, reinterpret_cast<void **>(&LoadLibraryAOriginal));
+
 	// EndScene
 	if (!(ptr = Pattern::FindPattern("d3d9.dll", "\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx"))) {
 		MessageBoxA(0, "Failed to find D3D9 exports", "Failure", MB_ICONERROR);
@@ -764,7 +795,7 @@ bool Engine::Initialize() {
 	}
 
 	// LevelLoad
-	if (!(ptr = Pattern::FindPattern("\x6A\xFF\x68\x00\x00\x00\x00\x64\xA1\x00\x00\x00\x00\x50\x81\xEC\x00\x00\x00\x00\x53\x55\x56\x57\xA1\x00\x00\x00\x00\x33\xC4\x50\x8D\x84\x24\x00\x00\x00\x00\x64\xA3\x00\x00\x00\x00\x8B\xE9\x89\x6C\x24\x00\x00\xFF\x89", "???????xxxxxxxxx?xxxxxxxx????xxxxxx?xxxxxxxxxxxxxx??xx"))) {
+	if (!(ptr = levelLoad.Base = Pattern::FindPattern("\x6A\xFF\x68\x00\x00\x00\x00\x64\xA1\x00\x00\x00\x00\x50\x81\xEC\x00\x00\x00\x00\x53\x55\x56\x57\xA1\x00\x00\x00\x00\x33\xC4\x50\x8D\x84\x24\x00\x00\x00\x00\x64\xA3\x00\x00\x00\x00\x8B\xE9\x89\x6C\x24\x00\x00\xFF\x89", "???????xxxxxxxxx?xxxxxxxx????xxxxxx?xxxxxxxxxxxxxx??xx"))) {
 		MessageBoxA(0, "Failed to find LevelLoad", "Failure", MB_ICONERROR);
 		return false;
 	}
@@ -780,7 +811,7 @@ bool Engine::Initialize() {
 		return false;
 	}
 	
-	if (!(ptr = Pattern::FindPattern(ptr, 0x1000, "\xC7\x05\x00\x00\x00\x00\x00\x00\x00\x00\xB8\x00\x00\x00\x00\xC3\xB8\x00\x00\x00\x00\xC3", "xx????????x????xx????x"))) {
+	if (!(ptr = death.PreBase = Pattern::FindPattern(ptr, 0x1000, "\xC7\x05\x00\x00\x00\x00\x00\x00\x00\x00\xB8\x00\x00\x00\x00\xC3\xB8\x00\x00\x00\x00\xC3", "xx????????x????xx????x"))) {
 		MessageBoxA(0, "Failed to find PreDeath (2)", "Failure", MB_ICONERROR);
 		return false;
 	}
@@ -791,8 +822,8 @@ bool Engine::Initialize() {
 	}
 
 	// PostDeath
-	if (!(ptr = Pattern::FindPattern(ptr, 0x1000, "\x8B\x0D\x00\x00\x00\x00\xC7\x05\x00\x00\x00\x00\x00\x00\x00\x00\x8B\x01\x8B\x90\x00\x00\x00\x00\xFF\xD2\xB8\x00\x00\x00\x00\xC3\x8B\xC1\xC7\x00\x00\x00\x00\x00\xC3", "xx????xx????????xxxx????xxx????xxxxx????x"))) {
-		MessageBoxA(0, "Failed to hook PostDeath", "Failure", MB_ICONERROR);
+	if (!(ptr = death.PostBase = Pattern::FindPattern(ptr, 0x1000, "\x8B\x0D\x00\x00\x00\x00\xC7\x05\x00\x00\x00\x00\x00\x00\x00\x00\x8B\x01\x8B\x90\x00\x00\x00\x00\xFF\xD2\xB8\x00\x00\x00\x00\xC3\x8B\xC1\xC7\x00\x00\x00\x00\x00\xC3", "??????xx????????xxxx????xxx????xxxxx????x"))) {
+		MessageBoxA(0, "Failed to find PostDeath", "Failure", MB_ICONERROR);
 		return false;
 	}
 
