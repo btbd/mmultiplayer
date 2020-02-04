@@ -129,7 +129,6 @@ static void Save(Trainer::Save &save, Classes::ATdPlayerPawn *pawn, Classes::ATd
 		case Classes::EMovement::MOVE_ZipLine:
 		case Classes::EMovement::MOVE_GrabTransfer:
 		case Classes::EMovement::MOVE_Coil:
-		case Classes::EMovement::MOVE_MeleeWallrun:
 		case Classes::EMovement::MOVE_WallClimb180TurnJump:
 			break;
 		default:
