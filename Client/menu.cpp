@@ -23,10 +23,6 @@ static void RenderMenu(IDirect3DDevice9 *device) {
 
 /*** Basic Tabs ***/
 static void EngineTab() {
-	if (ImGui::Hotkey("Menu Keybind##menu-show", &showKeybind)) {
-		Settings::SetSetting("menu", "showKeybind", showKeybind);
-	}
-
 	auto engine = Engine::GetEngine();
 	if (!engine) {
 		return;
@@ -62,6 +58,19 @@ static void EngineTab() {
 	auto client = engine->Client;
 	if (client) {
 		ImGui::InputFloat("Gamma##engine-gamma", &client->DisplayGamma);
+	}
+
+	if (ImGui::Hotkey("Menu Keybind##menu-show", &showKeybind)) {
+		Settings::SetSetting("menu", "showKeybind", showKeybind);
+	}
+
+	ImGui::SameLine();
+
+	if (ImGui::Button("Debug Console##client-show-console")) {
+		AllocConsole();
+		static_cast<VOID>(freopen("CONIN$", "r", stdin));
+		static_cast<VOID>(freopen("CONOUT$", "w", stdout));
+		static_cast<VOID>(freopen("CONOUT$", "w", stderr));
 	}
 }
 

@@ -1,24 +1,10 @@
-# MMultiplayer Remake
+# Mirror's Edge Multiplayer Mod
 
-## Todo
+## Setup
 
-### Client
-- Addons
-    - Multiplayer client
-    - Chat
-    - Dolly
-    - Trainer
-        - Save/load
-        - Strang tool
-        - KG tool
-- Test on all game versions
-- Add support for map creators (?)
+1. Download the latest release from <a href="https://github.com/btbd/mmultiplayer/releases/latest">here</a>.
+2. Run `MMultiplayer.exe` either before Mirror's Edge or when Mirror's Edge is running.
 
-### Launcher
-- Create it
+## Usage
 
-### Server
-- Create it
-
-### Misc
-- Proper READMEs
+- Press `Insert` to view the in-game menu where you can adjust settings and play around.

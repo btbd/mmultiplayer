@@ -8,11 +8,6 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
 
 		Settings::Load();
 
-		AllocConsole();
-		static_cast<VOID>(freopen("CONIN$", "r", stdin));
-		static_cast<VOID>(freopen("CONOUT$", "w", stdout));
-		static_cast<VOID>(freopen("CONOUT$", "w", stderr));
-
 		Addon *addons[] = { new Client(), new Trainer(), new Dolly() };
 
 		if (!Engine::Initialize()) {

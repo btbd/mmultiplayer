@@ -79,7 +79,7 @@ static bool RecvJsonMessage(json &msg) {
 	try {
 		msg = json::parse(buffer);
 	} catch (...) {
-		printf("failed: %s\n", buffer);
+		printf("client: failed parse -> %s\n", buffer);
 		return false;
 	}
 
@@ -503,9 +503,9 @@ static void OnRender(IDirect3DDevice9 *device) {
 	static const auto inputHeightOffset = 50.0f;
 	static const auto inputWidthOffset = 50.0f;
 
-	// Create the window anyways so ImGui doesn't set focus priority
-	auto window = ImGui::BeginRawScene("##client-backbuffer-nametags");
+	
 	if (players.ShowNameTags) {
+		auto window = ImGui::BeginRawScene("##client-backbuffer-nametags");
 		players.Mutex.lock_shared();
 
 		for (auto p : players.List) {
@@ -527,10 +527,10 @@ static void OnRender(IDirect3DDevice9 *device) {
 		}
 
 		players.Mutex.unlock_shared();
+		ImGui::EndRawScene();
 	}
-	ImGui::EndRawScene();
 
-	window = ImGui::BeginRawScene("##client-backbuffer-chat");
+	auto window = ImGui::BeginRawScene("##client-backbuffer-chat");
 	auto &io = ImGui::GetIO();
 
 	auto width = io.DisplaySize.x / 3.0f;
@@ -586,16 +586,18 @@ static void MultiplayerTab() {
 	ImGui::Text("Status: %s", connected ? "Connected" : "Connecting");
 
 	auto nameInputCallback = []() {
-		AddChatMessage(client.Name + " renamed to " + nameInput);
-		client.Name = nameInput;
-		Settings::SetSetting("client", "name", client.Name);
+		if (client.Name != nameInput) {
+			AddChatMessage(client.Name + " renamed to " + nameInput);
+			client.Name = nameInput;
+			Settings::SetSetting("client", "name", client.Name);
 
-		if (connected) {
-			SendJsonMessage({
-				{ "type", "name" },
-				{ "id", client.Id },
-				{ "name", client.Name },
-			});
+			if (connected) {
+				SendJsonMessage({
+					{ "type", "name" },
+					{ "id", client.Id },
+					{ "name", client.Name },
+					});
+			}
 		}
 	};
 	
@@ -640,11 +642,13 @@ static void MultiplayerTab() {
 	}
 
 	auto roomInputCallback = []() {
-		room = roomInput;
-		Settings::SetSetting("client", "room", room);
+		if (room != roomInput) {
+			room = roomInput;
+			Settings::SetSetting("client", "room", room);
 
-		if (connected) {
-			Disconnect();
+			if (connected) {
+				Disconnect();
+			}
 		}
 	};
 
@@ -692,6 +696,13 @@ static void MultiplayerTab() {
 	if (ImGui::TreeNode("##client-players", "Players (%d)", players.List.size())) {
 		for (auto p : players.List) {
 			ImGui::Text("%s - %s", p->Name.c_str(), p->Level.c_str());
+			ImGui::SameLine();
+			if (ImGui::Button(("Goto##client-goto-" + std::to_string(p->Id)).c_str()) && p->Level == client.Level && p->Pawn) {
+				auto pawn = Engine::GetPlayerPawn();
+				if (pawn) {
+					pawn->Location = p->Pawn->Location;
+				}
+			}
 		}
 
 		ImGui::TreePop();
