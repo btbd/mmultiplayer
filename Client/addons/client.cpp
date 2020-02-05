@@ -222,7 +222,7 @@ static bool Join() {
 			return tolower(c);
 		});
 
-		if (client.Level == "TdMainMenu") {
+		if (client.Level == "tdmainmenu") {
 			loading = true;
 		}
 	}
@@ -786,7 +786,7 @@ bool Client::Initialize() {
 	});
 
 	Engine::OnPostLevelLoad([](const wchar_t *) {
-		if (client.Level != "TdMainMenu") {
+		if (client.Level != "tdmainmenu") {
 			players.Mutex.lock_shared();
 
 			for (auto &p : players.List) {
