@@ -218,6 +218,9 @@ static bool Join() {
 		}
 
 		client.Level = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(world->GetMapName(false).c_str());
+		std::transform(client.Level.begin(), client.Level.end(), client.Level.begin(), [](char c) {
+			return tolower(c);
+		});
 
 		if (client.Level == "TdMainMenu") {
 			loading = true;
@@ -769,7 +772,11 @@ bool Client::Initialize() {
 	Engine::OnPreLevelLoad([](const wchar_t *levelNameW) {
 		players.Mutex.lock_shared();
 		loading = true;
+
 		client.Level = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>().to_bytes(levelNameW);
+		std::transform(client.Level.begin(), client.Level.end(), client.Level.begin(), [](char c) {
+			return tolower(c);
+		});
 
 		for (auto &p : players.List) {
 			p->Pawn = nullptr;
