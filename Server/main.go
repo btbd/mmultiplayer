@@ -207,7 +207,7 @@ func tcpHandler(c net.Conn) {
 				Room:       room,
 				Name:       msgName,
 				Character:  uint32(msgCharacter),
-				Level:      msgLevel,
+				Level:      strings.ToLower(msgLevel),
 				LastPacket: nil,
 				LastSeen:   time.Now(),
 			}
@@ -307,7 +307,7 @@ func tcpHandler(c net.Conn) {
 				continue
 			}
 
-			client.Level = level
+			client.Level = strings.ToLower(level)
 			client.LastSeen = time.Now()
 			client.Room.SendMessageExcept(client.Id, map[string]interface{}{
 				"type":  "level",
