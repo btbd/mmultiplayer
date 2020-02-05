@@ -1,17 +1,21 @@
 #include "stdafx.h"
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, char *, int) {
-	PROCESSENTRY32 processInfo = GetProcessInfoByName(L"mirrorsedge.exe");
+start:
+	auto processInfo = GetProcessInfoByName(L"mirrorsedge.exe");
 	if (!processInfo.th32ProcessID) {
-		std::thread([]() {
+		auto thread = CreateThread(nullptr, 0, [](void *) -> unsigned long {
 			MessageBox(0, L"Waiting for Mirror's Edge to start. Click OK to stop.", L"Waiting...", MB_OK);
 			exit(0);
-		}).detach();
+			return 0;
+		}, nullptr, 0, nullptr);
 
 		do {
 			Sleep(200);
 			processInfo = GetProcessInfoByName(L"mirrorsedge.exe");
 		} while (!processInfo.th32ProcessID);
+
+		TerminateThread(thread, 0);
 	}
 
 	auto status = 0;
@@ -22,8 +26,10 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, char *, int) {
 			return 0;
 		}
 
-		while (!HasModule(process, L"hid.dll")) {
+		while (!HasModule(process, L"openal32.dll")) {
+			CloseHandle(process);
 			Sleep(200);
+			goto start;
 		}
 
 		auto path = GetDllPath();
