@@ -618,7 +618,7 @@ static void MultiplayerTab() {
 	if (ImGui::Button("Change##client-name-button")) {
 		nameInputCallback();
 	}
-
+	
 	ImGui::Text("Character");
 	ImGui::SameLine();
 	static auto selectedCharacter = Engine::Characters[0];

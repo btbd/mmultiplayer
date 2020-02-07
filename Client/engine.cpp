@@ -530,6 +530,10 @@ Classes::ATdPlayerController *Engine::GetPlayerController(bool update) {
 		if (world) {
 			for (auto controller = world->ControllerList; controller; controller = controller->NextController) {
 				if (controller->IsA(Classes::ATdPlayerController::StaticClass())) {
+					if (!static_cast<Classes::ATdPlayerController *>(controller)->PlayerCamera) {
+						return nullptr;
+					}
+
 					cache = static_cast<Classes::ATdPlayerController *>(controller);
 					break;
 				}
@@ -657,7 +661,7 @@ bool Engine::WorldToScreen(IDirect3DDevice9 *device, Classes::FVector &inOutLoca
 		return false;
 	}
 
-	auto fov = tanf((controller->FOVAngle * CONST_Pi / 180.0f) / 2.0f);
+	auto fov = tanf((controller->PlayerCamera->GetFOVAngle() * CONST_Pi / 180.0f) / 2.0f);
 	auto displaySize = ImGui::GetIO().DisplaySize;
 	auto ratioFov = (displaySize.x / displaySize.y) / fov;
 

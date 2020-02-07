@@ -18,7 +18,7 @@ static Classes::FRotator VectorToRotator(Classes::FVector vector) {
 }
 
 static Classes::FVector RotatorToVector(Classes::FRotator rotator) {
-	auto convert = [](int r) {
+	auto convert = [](unsigned int r) {
 		return (static_cast<float>(r % 0x10000) / static_cast<float>(0x10000)) * 360.0f;
 	};
 
@@ -132,7 +132,7 @@ static void FixPlayer() {
 	pawn->Mesh3p->SetHidden(hide);
 	pawn->bCollideWorld = !hide;
 	controller->bCanBeDamaged = !hide;
-	controller->FOVAngle = controller->DesiredFOV = controller->DefaultFOV;
+	controller->PlayerCamera->SetFOV(controller->DefaultFOV);
 
 	if (!hide) {
 		for (auto &r : recordings) {
@@ -220,7 +220,7 @@ static void DollyTab() {
 	ImGui::SameLine();
 	if (ImGui::Button("Add Marker##dolly")) {
 		if (pawn && controller) {
-			Dolly::Marker marker(frame, controller->FOVAngle, pawn->Location, RotatorToVector(pawn->Controller->Rotation));
+			Dolly::Marker marker(frame, controller->PlayerCamera->GetFOVAngle(), pawn->Location, RotatorToVector(pawn->Controller->Rotation));
 
 			auto replaced = false;
 			for (auto &m : markers) {
@@ -251,8 +251,9 @@ static void DollyTab() {
 	ImGui::SliderInt("Timeline##dolly", &frame, 0, duration, highlights, markers.size());
 	delete[] highlights;
 
-	if (ImGui::SliderFloat("FOV##dolly", &controller->DesiredFOV, 0, 160) && !cameraView) {
-		controller->FOVAngle = controller->DesiredFOV;
+	float fov = controller->PlayerCamera->GetFOVAngle();
+	if (ImGui::SliderFloat("FOV##dolly", &fov, 0, 160) && !cameraView) {
+		controller->PlayerCamera->SetFOV(fov);
 	}
 
 	if (ImGui::CollapsingHeader("Markers##dolly")) {
@@ -342,7 +343,7 @@ static void OnTick(float) {
 					auto &m0 = markers[i];
 					if (m0.Frame <= frame) {
 						if (i == markers.size() - 1) {
-							controller->FOVAngle = controller->DesiredFOV = m0.FOV;
+							controller->PlayerCamera->SetFOV(m0.FOV);
 							pawn->Location = m0.Position;
 							pawn->Controller->Rotation = VectorToRotator(m0.Rotation);
 						} else {
@@ -367,14 +368,14 @@ static void OnTick(float) {
 								(&rot.X)[r] = Interpolate(static_cast<float>(m0.Frame), static_cast<float>(m1.Frame), GetMarkerField(i, fieldOffset), GetMarkerField(i + 1, fieldOffset), s0, s1, static_cast<float>(frame));
 							}
 
-							controller->FOVAngle = controller->DesiredFOV = Interpolate(
+							controller->PlayerCamera->SetFOV(Interpolate(
 								static_cast<float>(m0.Frame),
 								static_cast<float>(m1.Frame),
 								GetMarkerField(i, FIELD_OFFSET(Dolly::Marker, FOV)),
 								GetMarkerField(i + 1, FIELD_OFFSET(Dolly::Marker, FOV)),
 								Slope(i, FIELD_OFFSET(Dolly::Marker, FOV)),
 								Slope(i + 1, FIELD_OFFSET(Dolly::Marker, FOV)),
-								static_cast<float>(frame));
+								static_cast<float>(frame)));
 							
 							pawn->Location = pos;
 							controller->Rotation = VectorToRotator(rot);
