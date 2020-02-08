@@ -420,7 +420,7 @@ static void OnTick(float) {
 					r.Pawn->Location = { 0 };
 				}
 
-				r.Pawn->Mesh3p->bNeedsUpdateTransform = true;
+				r.Pawn->Mesh3p->ForceUpdate(false);
 			}
 		}
 	}

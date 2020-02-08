@@ -472,10 +472,15 @@ static void OnTick(float delta) {
 	static float sum = 0;
 	sum += delta;
 
-	if (!loading && connected && sum > 0.016f) {
-		auto pawn = Engine::GetPlayerPawn();
+	auto pawn = Engine::GetPlayerPawn();
+	if (pawn && !loading && connected) {
+		if (sum > 0.016f) {
+			static void *lastPawn = nullptr;
+			if (lastPawn != pawn) {
+				printf("pawn: %p\n", pawn);
+				lastPawn = pawn;
+			}
 
-		if (pawn) {
 			Client::PACKET_COMPRESSED packet;
 			packet.Id = client.Id;
 			packet.Position = pawn->Location;
@@ -488,28 +493,28 @@ static void OnTick(float delta) {
 			}
 
 			sendto(udpSocket, reinterpret_cast<const char *>(&packet), sizeof(packet), 0, reinterpret_cast<const sockaddr *>(&server), sizeof(server));
+
+			sum = 0;
 		}
 
-		sum = 0;
-	}
+		players.Mutex.lock_shared();
 
-	players.Mutex.lock_shared();
-
-	for (auto &p : players.List) {
-		if (p->Pawn && p->Id == p->LastPacket.Id) {
-			p->Pawn->Location = p->LastPacket.Position;
-			p->Pawn->Rotation.Yaw = p->LastPacket.Yaw;
-			p->Pawn->Mesh3p->bNeedsUpdateTransform = true;
+		for (auto &p : players.List) {
+			if (p->Pawn && p->Id == p->LastPacket.Id) {
+				p->Pawn->Location = p->LastPacket.Position;
+				p->Pawn->Rotation = { 0, p->LastPacket.Yaw, 0 };
+				
+				p->Pawn->Mesh3p->ForceUpdate(false);
+			}
 		}
-	}
 
-	players.Mutex.unlock_shared();
+		players.Mutex.unlock_shared();
+	}
 }
 
 static void OnRender(IDirect3DDevice9 *device) {
 	static const auto inputHeightOffset = 50.0f;
 	static const auto inputWidthOffset = 50.0f;
-
 	
 	if (players.ShowNameTags) {
 		auto window = ImGui::BeginRawScene("##client-backbuffer-nametags");

@@ -400,6 +400,8 @@ Classes::ATdPlayerPawn *SpawnCharacter(Engine::Character character) {
 }
 
 void __fastcall TickHook(float *scales, void *idle, int arg, float delta) {
+	tick.Original(scales, arg, delta);
+
 	if (Engine::GetPlayerPawn(true)) {
 		// Queues must be executed inside the context of an engine thread in sync with a tick
 		if (commands.Queue.size() > 0) {
@@ -423,7 +425,9 @@ void __fastcall TickHook(float *scales, void *idle, int arg, float delta) {
 			spawns.Mutex.lock();
 
 			for (auto &spawn : spawns.Queue) {
-				spawn.second = SpawnCharacter(spawn.first);
+				if (!spawn.second) {
+					spawn.second = SpawnCharacter(spawn.first);
+				}
 			}
 
 			spawns.Queue.clear();
@@ -436,8 +440,6 @@ void __fastcall TickHook(float *scales, void *idle, int arg, float delta) {
 	for (auto callback : tick.Callbacks) {
 		callback(delta);
 	}
-
-	tick.Original(scales, arg, delta);
 }
 
 Classes::UTdGameEngine *Engine::GetEngine(bool update) {
