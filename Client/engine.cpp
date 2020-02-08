@@ -30,6 +30,7 @@ static struct {
 
 static struct {
 	std::vector<std::pair<Engine::Character, Classes::ATdPlayerPawn *&>> Queue;
+	std::vector<Classes::AActor *> DeQueue;
 	std::mutex Mutex;
 } spawns;
 
@@ -267,13 +268,11 @@ HMODULE WINAPI LoadLibraryAHook(const char *module) {
 }
 
 void *__fastcall ActorTickHook(Classes::AActor *actor, void *idle, void *arg) {
-	auto ret = actorTick.Original(actor, arg);
-
 	for (auto callback : actorTick.Callbacks) {
 		callback(actor);
 	}
 
-	return ret;
+	return actorTick.Original(actor, arg);;
 }
 
 void *__fastcall BonesTickHook(void *this_, void *idle, Classes::TArray<Classes::FBoneAtom> *bones, void *arg3, void *arg4, void *arg5) {
@@ -384,7 +383,7 @@ Classes::ATdPlayerPawn *SpawnCharacter(Engine::Character character) {
 
 	if (character != Engine::Character::Faith) {
 		auto mesh = pawn->Mesh3p;
-		mesh->SetSkeletalMesh(static_cast<Classes::USkeletalMesh *>(pawn->STATIC_DynamicLoadObject(meshes[static_cast<size_t>(character)], Classes::USkeletalMesh::StaticClass(), false)), true);
+		mesh->SetSkeletalMesh(static_cast<Classes::USkeletalMesh *>(pawn->STATIC_DynamicLoadObject(meshes[static_cast<size_t>(character)], Classes::USkeletalMesh::StaticClass(), false)), false);
 
 		auto mats = materials[static_cast<size_t>(character)];
 		for (auto i = 0UL; i < mats.size(); ++i) {
@@ -396,6 +395,7 @@ Classes::ATdPlayerPawn *SpawnCharacter(Engine::Character character) {
 		}
 	}
 
+	pawn->Mesh3p->bUpdateSkelWhenNotRendered = true;
 	return pawn;
 }
 
@@ -432,6 +432,20 @@ void __fastcall TickHook(float *scales, void *idle, int arg, float delta) {
 
 			spawns.Queue.clear();
 			spawns.Queue.shrink_to_fit();
+
+			spawns.Mutex.unlock();
+		}
+
+		if (spawns.DeQueue.size() > 0) {
+			spawns.Mutex.lock();
+
+			for (auto actor : spawns.DeQueue) {
+				actor->SetHidden(true);
+				actor->SetTimer(0.01f, false, "DestroyPawn", actor);
+			}
+
+			spawns.DeQueue.clear();
+			spawns.DeQueue.shrink_to_fit();
 
 			spawns.Mutex.unlock();
 		}
@@ -576,8 +590,9 @@ void Engine::Despawn(Classes::AActor *actor) {
 		return;
 	}
 
-	actor->SetHidden(true);
-	actor->SetTimer(0.01f, false, "DestroyPawn", actor);
+	spawns.Mutex.lock();
+	spawns.DeQueue.push_back({ actor });
+	spawns.Mutex.unlock();
 }
 
 void Engine::TransformBones(Character character, Classes::TArray<Classes::FBoneAtom> *destBones, Classes::FBoneAtom *src) {

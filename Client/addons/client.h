@@ -30,6 +30,7 @@ public:
 		std::string Name;
 		std::string Level;
 		Classes::ATdPlayerPawn *Pawn;
+		float MaxZ;
 		PACKET LastPacket;
 	};
 };

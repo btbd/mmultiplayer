@@ -91,7 +91,7 @@ public:
 	inline void ProcessEvent(class UFunction* function, void* parms)
 	{
 		void *ret = 0;
-		return GetVFunction<void(__thiscall *)(UObject*, class UFunction*, void*, void*)>(this, 61)(this, function, parms, &ret);
+		return GetVFunction<void(__thiscall *)(UObject*, UFunction*, void*, void*)>(this, 61)(this, function, parms, &ret);
 	}
 
 

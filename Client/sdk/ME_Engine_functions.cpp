@@ -7499,16 +7499,8 @@ void ACamera::GetCameraViewPoint(struct FVector* OutCamLoc, struct FRotator* Out
 
 void ACamera::SetFOV(float NewFOV)
 {
-	static auto fn = UObject::FindObject<UFunction>("Function Engine.Camera.SetFOV");
-
-	ACamera_SetFOV_Params params;
-	params.NewFOV = NewFOV;
-
-	auto flags = fn->FunctionFlags;
-
-	UObject::ProcessEvent(fn, &params);
-
-	fn->FunctionFlags = flags;
+	this->bLockedFOV = true;
+	this->LockedFOV = NewFOV;
 }
 
 
@@ -7519,17 +7511,11 @@ void ACamera::SetFOV(float NewFOV)
 
 float ACamera::GetFOVAngle()
 {
-	static auto fn = UObject::FindObject<UFunction>("Function Engine.Camera.GetFOVAngle");
+	if (this->bLockedFOV) {
+		return this->LockedFOV;
+	}
 
-	ACamera_GetFOVAngle_Params params;
-
-	auto flags = fn->FunctionFlags;
-
-	UObject::ProcessEvent(fn, &params);
-
-	fn->FunctionFlags = flags;
-
-	return params.ReturnValue;
+	return this->DefaultFOV;
 }
 
 

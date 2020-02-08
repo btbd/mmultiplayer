@@ -475,12 +475,6 @@ static void OnTick(float delta) {
 	auto pawn = Engine::GetPlayerPawn();
 	if (pawn && !loading && connected) {
 		if (sum > 0.016f) {
-			static void *lastPawn = nullptr;
-			if (lastPawn != pawn) {
-				printf("pawn: %p\n", pawn);
-				lastPawn = pawn;
-			}
-
 			Client::PACKET_COMPRESSED packet;
 			packet.Id = client.Id;
 			packet.Position = pawn->Location;
@@ -496,19 +490,6 @@ static void OnTick(float delta) {
 
 			sum = 0;
 		}
-
-		players.Mutex.lock_shared();
-
-		for (auto &p : players.List) {
-			if (p->Pawn && p->Id == p->LastPacket.Id) {
-				p->Pawn->Location = p->LastPacket.Position;
-				p->Pawn->Rotation = { 0, p->LastPacket.Yaw, 0 };
-				
-				p->Pawn->Mesh3p->ForceUpdate(false);
-			}
-		}
-
-		players.Mutex.unlock_shared();
 	}
 }
 
@@ -522,11 +503,8 @@ static void OnRender(IDirect3DDevice9 *device) {
 
 		for (auto p : players.List) {
 			if (p->Pawn && p->Level == client.Level) {
-				Classes::FBox boundingBox;
-				p->Pawn->GetComponentsBoundingBox(&boundingBox);
-
 				auto pos = p->Pawn->Location;
-				pos.Z = boundingBox.Max.Z;
+				pos.Z = p->MaxZ;
 
 				if (Engine::WorldToScreen(device, pos)) {
 					auto size = ImGui::CalcTextSize(p->Name.c_str());
@@ -626,13 +604,13 @@ static void MultiplayerTab() {
 	
 	ImGui::Text("Character");
 	ImGui::SameLine();
-	static auto selectedCharacter = Engine::Characters[0];
+
+	auto selectedCharacter = Engine::Characters[static_cast<size_t>(client.Character)];
 	if (ImGui::BeginCombo("##client-character", selectedCharacter)) {
 		for (auto i = 0; i < IM_ARRAYSIZE(Engine::Characters); ++i) {
 			auto c = Engine::Characters[i];
 			auto s = (c == selectedCharacter);
 			if (ImGui::Selectable(c, s)) {
-				selectedCharacter = c;
 				client.Character = static_cast<Engine::Character>(i);
 				Settings::SetSetting("client", "character", client.Character);
 
@@ -760,6 +738,27 @@ bool Client::Initialize() {
 				Engine::BlockInput(false);
 			}
 		}
+	});
+
+	Engine::OnActorTick([](Classes::AActor *actor) {
+		if (!actor) {
+			return;
+		}
+
+		players.Mutex.lock_shared();
+
+		for (auto &p : players.List) {
+			if (p->Pawn == actor && p->Id == p->LastPacket.Id) {
+				p->Pawn->Location = p->LastPacket.Position;
+				p->Pawn->Rotation = { 0, p->LastPacket.Yaw, 0 };
+
+				Classes::FBox boundingBox;
+				p->Pawn->GetComponentsBoundingBox(&boundingBox);
+				p->MaxZ = boundingBox.Max.Z;
+			}
+		}
+
+		players.Mutex.unlock_shared();
 	});
 
 	Engine::OnBonesTick([](Classes::TArray<Classes::FBoneAtom> *bones) {

@@ -409,20 +409,6 @@ static void OnTick(float) {
 
 			currentRecording.Frames.push_back(f);
 		}
-
-		for (auto &r : recordings) {
-			if (r.Pawn) {
-				if (frame >= r.StartFrame && frame < r.StartFrame + static_cast<int>(r.Frames.size())) {
-					auto &f = r.Frames[frame - r.StartFrame];
-					r.Pawn->Location = f.Position;
-					r.Pawn->Rotation = f.Rotation;
-				} else {
-					r.Pawn->Location = { 0 };
-				}
-
-				r.Pawn->Mesh3p->ForceUpdate(false);
-			}
-		}
 	}
 }
 
@@ -476,6 +462,24 @@ bool Dolly::Initialize() {
 	Menu::AddTab("Dolly", DollyTab);
 	Engine::OnTick(OnTick);
 	Engine::OnRenderScene(OnRender);
+
+	Engine::OnActorTick([](Classes::AActor *actor) {
+		if (!actor) {
+			return;
+		}
+
+		for (auto &r : recordings) {
+			if (r.Pawn == actor) {
+				if (frame >= r.StartFrame && frame < r.StartFrame + static_cast<int>(r.Frames.size())) {
+					auto &f = r.Frames[frame - r.StartFrame];
+					r.Pawn->Location = f.Position;
+					r.Pawn->Rotation = f.Rotation;
+				} else {
+					r.Pawn->Location = { 0 };
+				}
+			}
+		}
+	});
 
 	Engine::OnBonesTick([](Classes::TArray<Classes::FBoneAtom> *bones) {
 		for (auto &r : recordings) {
