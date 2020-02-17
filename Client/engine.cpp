@@ -30,7 +30,6 @@ static struct {
 
 static struct {
 	std::vector<std::pair<Engine::Character, Classes::ATdPlayerPawn *&>> Queue;
-	std::vector<Classes::AActor *> DeQueue;
 	std::mutex Mutex;
 } spawns;
 
@@ -435,20 +434,6 @@ void __fastcall TickHook(float *scales, void *idle, int arg, float delta) {
 
 			spawns.Mutex.unlock();
 		}
-
-		if (spawns.DeQueue.size() > 0) {
-			spawns.Mutex.lock();
-
-			for (auto actor : spawns.DeQueue) {
-				actor->SetHidden(true);
-				actor->SetTimer(0.01f, false, "DestroyPawn", actor);
-			}
-
-			spawns.DeQueue.clear();
-			spawns.DeQueue.shrink_to_fit();
-
-			spawns.Mutex.unlock();
-		}
 	}
 
 	for (auto callback : tick.Callbacks) {
@@ -590,9 +575,7 @@ void Engine::Despawn(Classes::AActor *actor) {
 		return;
 	}
 
-	spawns.Mutex.lock();
-	spawns.DeQueue.push_back({ actor });
-	spawns.Mutex.unlock();
+	actor->bHidden = true;
 }
 
 void Engine::TransformBones(Character character, Classes::TArray<Classes::FBoneAtom> *destBones, Classes::FBoneAtom *src) {

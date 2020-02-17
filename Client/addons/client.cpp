@@ -550,8 +550,9 @@ static void OnRender(IDirect3DDevice9 *device) {
 	
 		ImGui::PushTextWrapPos(width);
 		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, opacity));
-		ImGui::TextWrapped(chat.Raw.c_str());
+		ImGui::TextWrapped("%s", chat.Raw.c_str());
 		ImGui::PopStyleColor();
+		ImGui::PopTextWrapPos();
 
 		chat.Mutex.unlock();
 	}
@@ -586,7 +587,7 @@ static void MultiplayerTab() {
 					{ "type", "name" },
 					{ "id", client.Id },
 					{ "name", client.Name },
-					});
+				});
 			}
 		}
 	};
