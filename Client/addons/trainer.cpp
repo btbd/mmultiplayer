@@ -157,6 +157,7 @@ static void Load(Trainer::Save &save, Classes::ATdPlayerPawn *pawn, Classes::ATd
 	pawn->SetInitialState();
 	controller->InitialState = "PlayerWalking";
 	controller->SetInitialState();
+	controller->ForceFullReactionTimeEnergy();
 
 	pawn->StopAllCustomAnimations(0.0f);
 	pawn->SetMove(save.Pawn.MovementState, false, false);
@@ -262,6 +263,7 @@ static void Load(Trainer::Save &save, Classes::ATdPlayerPawn *pawn, Classes::ATd
 	auto world = Engine::GetWorld();
 	if (world) {
 		world->TimeDilation = 1.0f;
+		world->TdTimeDilation = 1.0f;
 	}
 }
 
