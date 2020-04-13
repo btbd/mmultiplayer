@@ -1,4 +1,4 @@
-#include "stdafx.h"
+﻿#include "stdafx.h"
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, char *, int) {
 start:
@@ -33,7 +33,7 @@ start:
 		}
 
 		auto path = GetDllPath();
-		if (URLDownloadToFile(nullptr, L"http://github.com/btbd/mmultiplayer/raw/master/Client/binary/Client.dll", path.c_str(), 0, nullptr) != S_OK && !PathFileExists(path.c_str())) {
+		if (URLDownloadToFile(nullptr, L"https://github.com/btbd/mmultiplayer/raw/master/Client/binary/Client.dll", path.c_str(), 0, nullptr) != S_OK && !PathFileExists(path.c_str())) {
 			MessageBox(0, L"Failed to download the latest version", L"Failure", 0);
 			status = 1;
 		}
