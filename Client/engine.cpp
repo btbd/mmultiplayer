@@ -575,7 +575,7 @@ void Engine::Despawn(Classes::AActor *actor) {
 		return;
 	}
 
-	actor->bHidden = true;
+	actor->SetHidden(true);
 }
 
 void Engine::TransformBones(Character character, Classes::TArray<Classes::FBoneAtom> *destBones, Classes::FBoneAtom *src) {
@@ -741,6 +741,16 @@ void Engine::BlockInput(bool block) {
 	ImGui::GetIO().MouseDrawCursor = window.BlockInput = block;
 }
 
+// This prevents a null derefence since the game's AI does not like multiple player pawns 
+void *(__thiscall *AiUpdateTdPlayerPawnOriginal)(void *, void *, void *) = nullptr;
+void *__fastcall AiUpdateTdPlayerPawnHook(void *this_, void *idle, void *arg1, void *arg2) {
+	if (!this_) {
+		return nullptr;
+	}
+
+	return AiUpdateTdPlayerPawnOriginal(this_, arg1, arg2);
+}
+
 bool Engine::Initialize() {
 	void *ptr = nullptr;
 
@@ -784,6 +794,17 @@ bool Engine::Initialize() {
 	// PeekMessage
 	if (!Hook::TrampolineHook(PeekMessageHook, PeekMessageW, reinterpret_cast<void **>(&window.PeekMessage))) {
 		MessageBoxA(0, "Failed to hook D3D9 Reset", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	// AiUpdateTdPlayerPawn
+	if (!(ptr = Pattern::FindPattern("\xE8\x00\x00\x00\x00\x8B\x4F\x40\xE8\x00\x00\x00\x00", "x????xxxx????"))) {
+		MessageBoxA(0, "Failed to find AiUpdateTdPlayerPawn", "Failure", MB_ICONERROR);
+		return false;
+	}
+
+	if (!Hook::TrampolineHook(AiUpdateTdPlayerPawnHook, RELATIVE_ADDR(ptr, 5), reinterpret_cast<void **>(&AiUpdateTdPlayerPawnOriginal))) {
+		MessageBoxA(0, "Failed to hook AiUpdateTdPlayerPawn", "Failure", MB_ICONERROR);
 		return false;
 	}
 
