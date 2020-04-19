@@ -48,7 +48,7 @@ func (client *Client) SendMessage(msg interface{}) {
 		return
 	}
 
-	client.Tcp.Write(r)
+	client.Tcp.Write(append(r, 0))
 }
 
 type Room struct {

@@ -213,10 +213,16 @@ int __fastcall LevelLoadHook(void *this_, void *idle, void **levelInfo, unsigned
 	for (auto callback : levelLoad.PreCallbacks) {
 		callback(levelName);
 	}
+
+	spawns.Mutex.lock();
+	spawns.Queue.clear();
+	spawns.Queue.shrink_to_fit();
 	
 	levelLoad.Loading = true;
 	auto ret = levelLoad.Original(this_, levelInfo, arg);
 	levelLoad.Loading = false;
+
+	spawns.Mutex.unlock();
 
 	for (auto callback : levelLoad.PostCallbacks) {
 		callback(levelName);
@@ -575,7 +581,7 @@ void Engine::Despawn(Classes::AActor *actor) {
 		return;
 	}
 
-	actor->SetHidden(true);
+	actor->Location = { 1e10f, 1e10f, 1e10f };
 }
 
 void Engine::TransformBones(Character character, Classes::TArray<Classes::FBoneAtom> *destBones, Classes::FBoneAtom *src) {

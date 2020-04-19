@@ -71,19 +71,34 @@ static bool Setup() {
 }
 
 static bool RecvJsonMessage(json &msg) {
-	char buffer[0xFFF] = { 0 };
-	if (recv(tcpSocket, buffer, sizeof(buffer), 0) <= 0) {
-		return false;
-	}
+	static char buffer[0xFFF] = { 0 };
+	static char *nextMessage = nullptr;
 
-	try {
-		msg = json::parse(buffer);
-	} catch (...) {
-		printf("client: failed parse -> %s\n", buffer);
-		return false;
-	}
+	for (;;) {
+		if (nextMessage && *nextMessage) {
+			auto message = nextMessage;
+			nextMessage += strlen(message) + 1;
 
-	return true;
+			try {
+				msg = json::parse(message);
+				return true;
+			} catch (...) {
+				printf("client: failed parse -> %s\n", message);
+
+				nextMessage = nullptr;
+				return false;
+			}
+		}
+
+		nextMessage = nullptr;
+		memset(buffer, 0, sizeof(buffer));
+
+		if (recv(tcpSocket, buffer, sizeof(buffer), 0) <= 0) {
+			return false;
+		}
+
+		nextMessage = buffer;
+	}
 }
 
 static bool SendJsonMessage(json msg) {
