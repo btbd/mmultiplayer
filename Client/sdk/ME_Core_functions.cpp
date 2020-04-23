@@ -5,6 +5,7 @@
 #endif
 
 #include "../sdk.h"
+#include <excpt.h>
 
 namespace Classes
 {
@@ -33,14 +34,15 @@ std::string UObject::GetFullName() const
 	return name;
 }
 
-bool UObject::IsA(UClass* cmp) const
-{
-	for (auto super = Class; super; super = static_cast<UClass*>(super->SuperField))
-	{
-		if (super == cmp)
-		{
-			return true;
+bool UObject::IsA(UClass *cmp) const {
+	__try {
+		for (auto super = Class; super; super = static_cast<UClass *>(super->SuperField)) {
+			if (super == cmp) {
+				return true;
+			}
 		}
+	} __except (EXCEPTION_EXECUTE_HANDLER) {
+		// NOTHING
 	}
 
 	return false;

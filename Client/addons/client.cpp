@@ -487,9 +487,9 @@ static void OnTick(float delta) {
 	static float sum = 0;
 	sum += delta;
 
-	auto pawn = Engine::GetPlayerPawn();
-	if (pawn && !loading && connected) {
-		if (sum > 0.016f) {
+	if (!loading && connected && sum > 0.016f) {
+		auto pawn = Engine::GetPlayerPawn();
+		if (pawn && pawn->Mesh3p) {
 			Client::PACKET_COMPRESSED packet;
 			packet.Id = client.Id;
 			packet.Position = pawn->Location;
