@@ -3726,7 +3726,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         }
         else if (IsKeyPressedMap(ImGuiKey_Escape))
         {
-            clear_active_id = cancel_edit = true;
+            clear_active_id = true;
         }
         else if (is_undo || is_redo)
         {

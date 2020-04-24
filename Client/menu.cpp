@@ -184,7 +184,7 @@ namespace Menu {
 		});
 
 		Engine::OnSuperInput([](unsigned int &msg, int keycode) {
-			if (show && msg == WM_KEYUP && keycode == showKeybind) {
+			if (show && msg == WM_KEYUP && (keycode == showKeybind || keycode == VK_ESCAPE)) {
 				show = false;
 				Engine::BlockInput(false);
 			}
