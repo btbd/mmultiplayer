@@ -209,7 +209,7 @@ static void PlayerHandler() {
 		auto player = GetPlayerById(packet.Id);
 		if (player) {
 			auto defaultPlayer = Engine::GetPlayerPawn();
-			if (defaultPlayer) {
+			if (defaultPlayer && defaultPlayer->Mesh3p) {
 				memcpy(&player->LastPacket, &packet, FIELD_OFFSET(Client::PACKET_COMPRESSED, CompressedBones));
 				memcpy(player->LastPacket.Bones, defaultPlayer->Mesh3p->LocalAtoms.Buffer(), PLAYER_PAWN_BONE_COUNT * sizeof(Classes::FBoneAtom));
 
@@ -517,9 +517,9 @@ static void OnRender(IDirect3DDevice9 *device) {
 		players.Mutex.lock_shared();
 
 		for (auto p : players.List) {
-			if (p->Pawn && p->Level == client.Level) {
+			if (p->Level == client.Level && p->Pawn && p->Pawn->Mesh3p) {
 				auto pos = p->Pawn->Location;
-				pos.Z = p->MaxZ;
+				pos.Z = p->MaxZ + 27.5f;
 
 				if (Engine::WorldToScreen(device, pos)) {
 					auto size = ImGui::CalcTextSize(p->Name.c_str());
@@ -764,13 +764,10 @@ bool Client::Initialize() {
 		players.Mutex.lock_shared();
 
 		for (auto &p : players.List) {
-			if (p->Pawn == actor && p->Id == p->LastPacket.Id) {
+			if (p->Pawn == actor && p->Pawn->Mesh3p && p->Id == p->LastPacket.Id) {
 				p->Pawn->Location = p->LastPacket.Position;
 				p->Pawn->Rotation = { 0, p->LastPacket.Yaw, 0 };
-
-				Classes::FBox boundingBox;
-				p->Pawn->GetComponentsBoundingBox(&boundingBox);
-				p->MaxZ = boundingBox.Max.Z;
+				p->MaxZ = p->Pawn->Mesh3p->GetBoneLocation("Neck", 0).Z;
 			}
 		}
 
@@ -781,7 +778,7 @@ bool Client::Initialize() {
 		players.Mutex.lock_shared();
 
 		for (auto &p : players.List) {
-			if (p->Pawn && &p->Pawn->Mesh3p->LocalAtoms == bones && p->Id == p->LastPacket.Id) {
+			if (p->Pawn && p->Pawn->Mesh3p && &p->Pawn->Mesh3p->LocalAtoms == bones && p->Id == p->LastPacket.Id) {
 				Engine::TransformBones(p->Character, bones, p->LastPacket.Bones);
 			}
 		}

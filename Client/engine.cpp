@@ -804,7 +804,7 @@ bool Engine::Initialize() {
 	}
 
 	// AiUpdateTdPlayerPawn
-	if (!(ptr = Pattern::FindPattern("\xE8\x00\x00\x00\x00\x8B\x4F\x40\xE8\x00\x00\x00\x00", "x????xxxx????"))) {
+	if (!(ptr = Pattern::FindPattern("\xE8\x00\x00\x00\x00\x8B\x4F\x40\xE8", "x????xxxx"))) {
 		MessageBoxA(0, "Failed to find AiUpdateTdPlayerPawn", "Failure", MB_ICONERROR);
 		return false;
 	}
