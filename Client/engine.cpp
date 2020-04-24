@@ -121,7 +121,7 @@ HRESULT WINAPI ResetHook(IDirect3DDevice9 *pDevice, D3DPRESENT_PARAMETERS *param
 	return ret;
 }
 
-void HandleMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+void HandleMessage(HWND hWnd, UINT &msg, WPARAM wParam, LPARAM lParam) {
 	switch (msg) {
 		case WM_KEYDOWN: case WM_SYSKEYDOWN:
 			if (wParam < sizeof(window.KeysDown)) {

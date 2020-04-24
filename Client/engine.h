@@ -9,7 +9,7 @@ typedef void (*DeathCallback)();
 typedef void (*ActorTickCallback)(Classes::AActor *actor);
 typedef void (*BonesTickCallback)(Classes::TArray<Classes::FBoneAtom> *atoms);
 typedef void (*TickCallback)(float delta);
-typedef void (*InputCallback)(int message, int keycode);
+typedef void (*InputCallback)(unsigned int &message, int keycode);
 
 namespace Engine {
 	static const char *Characters[] = { "Faith", "Kate", "Celeste", "Assault Celeste", "Jacknife", "Miller", "Kreeg", "Pursuit Cop", "Ghost" };

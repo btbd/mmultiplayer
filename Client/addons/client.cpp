@@ -736,14 +736,14 @@ bool Client::Initialize() {
 	Engine::OnTick(OnTick);
 	Engine::OnRenderScene(OnRender);
 
-	Engine::OnInput([](int msg, int keycode) {
+	Engine::OnInput([](unsigned int &msg, int keycode) {
 		if (!chat.Focused && msg == WM_KEYDOWN && keycode == chat.Keybind) {
 			chat.Focused = true;
 			Engine::BlockInput(true);
 		}
 	});
 
-	Engine::OnSuperInput([](int msg, int keycode) {
+	Engine::OnSuperInput([](unsigned int &msg, int keycode) {
 		if (chat.Focused) {
 			if (msg == WM_KEYUP && keycode == VK_RETURN) {
 				SendChatInput();

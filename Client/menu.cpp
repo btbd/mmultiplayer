@@ -176,14 +176,14 @@ namespace Menu {
 
 		Engine::OnRenderScene(RenderMenu);
 
-		Engine::OnInput([](int msg, int keycode) {
+		Engine::OnInput([](unsigned int &msg, int keycode) {
 			if (!show && msg == WM_KEYUP && keycode == showKeybind) {
 				show = true;
 				Engine::BlockInput(true);
 			}
 		});
 
-		Engine::OnSuperInput([](int msg, int keycode) {
+		Engine::OnSuperInput([](unsigned int &msg, int keycode) {
 			if (show && msg == WM_KEYUP && keycode == showKeybind) {
 				show = false;
 				Engine::BlockInput(false);
