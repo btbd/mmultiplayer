@@ -84,7 +84,7 @@ HRESULT WINAPI EndSceneHook(IDirect3DDevice9 *device) {
 		device->GetCreationParameters(&params);
 
 		ImGui::CreateContext();
-		ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\verdana.ttf", 14.0f);
+		ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\verdana.ttf", 16.0f);
 		ImGui_ImplWin32_Init(params.hFocusWindow);
 		ImGui_ImplDX9_Init(device);
 
@@ -102,6 +102,11 @@ HRESULT WINAPI EndSceneHook(IDirect3DDevice9 *device) {
 	}
 
 	ImGui::EndFrame();
+
+	device->SetRenderState(D3DRS_ZENABLE, false);
+	device->SetRenderState(D3DRS_ALPHABLENDENABLE, false);
+	device->SetRenderState(D3DRS_SCISSORTESTENABLE, false);
+	device->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, D3DCOLOR_RGBA(0, 0, 0, 0), 1.0f, 0);
 
 	ImGui::Render();
 	ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
