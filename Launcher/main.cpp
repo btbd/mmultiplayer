@@ -1,6 +1,11 @@
 ﻿#include "stdafx.h"
 
 int WINAPI WinMain(HINSTANCE, HINSTANCE, char *, int) {
+	if (!AdjustCurrentPrivilege(SE_DEBUG_NAME)) {
+		MessageBox(0, L"Failed to adjust privileges to debug", L"Failure", MB_OK);
+		return 0;
+	}
+
 start:
 	auto processInfo = GetProcessInfoByName(L"mirrorsedge.exe");
 	if (!processInfo.th32ProcessID) {
@@ -121,4 +126,34 @@ PROCESSENTRY32 GetProcessInfoByName(const wchar_t *name) {
 
 	CloseHandle(snapshot);
 	return { 0 };
+}
+
+bool AdjustCurrentPrivilege(const wchar_t *privilege) {
+	LUID luid;
+	if (!LookupPrivilegeValue(nullptr, privilege, &luid)) {
+		return FALSE;
+	}
+
+	TOKEN_PRIVILEGES tp = { 0 };
+	tp.PrivilegeCount = 1;
+	tp.Privileges[0].Luid = luid;
+	tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+	HANDLE token;
+	if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &token)) {
+		return FALSE;
+	}
+
+	if (!AdjustTokenPrivileges(token, false, &tp, sizeof(tp), nullptr, nullptr)) {
+		CloseHandle(token);
+		return FALSE;
+	}
+
+	if (GetLastError() == ERROR_NOT_ALL_ASSIGNED) {
+		CloseHandle(token);
+		return FALSE;
+	}
+
+	CloseHandle(token);
+	return TRUE;
 }
