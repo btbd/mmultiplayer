@@ -3,7 +3,7 @@
 int WINAPI WinMain(HINSTANCE, HINSTANCE, char *, int) {
 	if (!AdjustCurrentPrivilege(SE_DEBUG_NAME)) {
 		MessageBox(0, L"Failed to adjust privileges to debug", L"Failure", MB_OK);
-		return 0;
+		return 1;
 	}
 
 start:
