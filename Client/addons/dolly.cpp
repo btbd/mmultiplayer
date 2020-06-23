@@ -281,7 +281,7 @@ static void DollyTab() {
 
 	ImGui::SameLine();
 	ImGui::Checkbox("Force Roll##dolly", &forceRoll);
-	ForceRoll(forceRoll);
+	ForceRoll(cameraView || forceRoll);
 
 	if (ImGui::CollapsingHeader("Markers##dolly")) {
 		for (auto i = 0UL; i < markers.size(); ++i) {
