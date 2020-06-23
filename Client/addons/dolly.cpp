@@ -9,6 +9,17 @@ static auto character = Engine::Character::Faith;
 static Dolly::Recording currentRecording;
 static std::vector<Dolly::Recording> recordings;
 
+static void *forceRollPatch = nullptr;
+static byte forceRollPatchOriginal[6];
+
+static void ForceRoll(bool force) {
+	if (force) {
+		memcpy(forceRollPatch, "\x90\x90\x90\x90\x90\x90", 6);
+	} else {
+		memcpy(forceRollPatch, forceRollPatchOriginal, 6);
+	}
+}
+
 static Classes::FRotator VectorToRotator(Classes::FVector vector) {
 	auto convert = [](float r) {
 		return static_cast<unsigned int>((fmodf(r, 360.0f) / 360.0f) * 0x10000);
@@ -119,6 +130,7 @@ static void FixPlayer() {
 	auto pawn = Engine::GetPlayerPawn();
 	auto controller = Engine::GetPlayerController();
 	if (!pawn || !controller) {
+		ForceRoll(false);
 		return;
 	}
 
@@ -134,7 +146,9 @@ static void FixPlayer() {
 	controller->bCanBeDamaged = !hide;
 	controller->PlayerCamera->SetFOV(controller->DefaultFOV);
 
-	if (!hide) {
+	if (hide) {
+		ForceRoll(true);
+	} else {
 		for (auto &r : recordings) {
 			if (r.Pawn) {
 				r.Pawn->Location = { 0 };
@@ -142,6 +156,7 @@ static void FixPlayer() {
 		}
 
 		pawn->EnterFallingHeight = -1e30f;
+		ForceRoll(false);
 	}
 }
 
@@ -165,6 +180,7 @@ static void DollyTab() {
 
 		playing = true;
 		FixPlayer();
+		Menu::Hide();
 	}
 
 	ImGui::SameLine();
@@ -251,10 +267,21 @@ static void DollyTab() {
 	ImGui::SliderInt("Timeline##dolly", &frame, 0, duration, highlights, markers.size());
 	delete[] highlights;
 
-	float fov = controller->PlayerCamera->GetFOVAngle();
+	auto fov = controller->PlayerCamera->GetFOVAngle();
 	if (ImGui::SliderFloat("FOV##dolly", &fov, 0, 160) && !cameraView) {
 		controller->PlayerCamera->SetFOV(fov);
 	}
+
+	static bool forceRoll = false;
+	auto roll = static_cast<int>(controller->Rotation.Roll % 0x10000);
+	if (ImGui::SliderInt("Roll##dolly", &roll, 0, 0x10000 - 1) && !cameraView) {
+		forceRoll = true;
+		controller->Rotation.Roll = roll;
+	}
+
+	ImGui::SameLine();
+	ImGui::Checkbox("Force Roll##dolly", &forceRoll);
+	ForceRoll(forceRoll);
 
 	if (ImGui::CollapsingHeader("Markers##dolly")) {
 		for (auto i = 0UL; i < markers.size(); ++i) {
@@ -387,6 +414,7 @@ static void OnTick(float) {
 			}
 
 			pawn->Velocity = { 0 };
+			pawn->Acceleration = { 0 };
 			pawn->Health = pawn->MaxHealth;
 
 			for (auto i = 0UL; i < pawn->Timers.Num(); ++i) {
@@ -459,6 +487,19 @@ static void OnRender(IDirect3DDevice9 *device) {
 }
 
 bool Dolly::Initialize() {
+	forceRollPatch = Pattern::FindPattern("\x89\x93\x00\x00\x00\x00\xA1\x00\x00\x00\x00\x83\xB8", "xx????x????xx");
+	if (!forceRollPatch) {
+		MessageBoxA(0, "Failed to find forceRollPatch", "Failure", 0);
+		return false;
+	}
+
+	unsigned long oldProtect;
+	if (!VirtualProtect(forceRollPatch, sizeof(forceRollPatchOriginal), PAGE_EXECUTE_READWRITE, &oldProtect)) {
+		MessageBoxA(0, "Failed to change page protection for rollPatch", "Failure", 0);
+	}
+
+	memcpy(forceRollPatchOriginal, forceRollPatch, sizeof(forceRollPatchOriginal));
+
 	Menu::AddTab("Dolly", DollyTab);
 	Engine::OnTick(OnTick);
 	Engine::OnRenderScene(OnRender);

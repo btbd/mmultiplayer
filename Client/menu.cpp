@@ -170,6 +170,16 @@ namespace Menu {
 		});
 	}
 
+	void Hide() {
+		show = false;
+		Engine::BlockInput(false);
+	}
+
+	void Show() {
+		show = true;
+		Engine::BlockInput(true);
+	}
+
 	bool Initialize() {
 		showKeybind = Settings::GetSetting("menu", "showKeybind", VK_INSERT);
 		showPlayerInfo = Settings::GetSetting("player", "showInfo", false);
@@ -178,15 +188,13 @@ namespace Menu {
 
 		Engine::OnInput([](unsigned int &msg, int keycode) {
 			if (!show && msg == WM_KEYUP && keycode == showKeybind) {
-				show = true;
-				Engine::BlockInput(true);
+				Show();
 			}
 		});
 
 		Engine::OnSuperInput([](unsigned int &msg, int keycode) {
 			if (show && msg == WM_KEYUP && (keycode == showKeybind || keycode == VK_ESCAPE)) {
-				show = false;
-				Engine::BlockInput(false);
+				Hide();
 			}
 		});
 
