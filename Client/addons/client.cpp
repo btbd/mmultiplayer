@@ -511,6 +511,7 @@ static void OnTick(float delta) {
 static void OnRender(IDirect3DDevice9 *device) {
 	static const auto inputHeightOffset = 50.0f;
 	static const auto inputWidthOffset = 50.0f;
+	static const auto unfocusedChatMessages = 5;
 	
 	if (players.ShowNameTags) {
 		auto window = ImGui::BeginRawScene("##client-backbuffer-nametags");
@@ -555,7 +556,22 @@ static void OnRender(IDirect3DDevice9 *device) {
 	if (opacity > 0.0f) {
 		chat.Mutex.lock();
 
-		auto height = ImGui::CalcTextSize(chat.Raw.c_str(), nullptr, false, width).y + (ImGui::GetTextLineHeight() / 6.0f);
+		auto body = chat.Raw;
+		if (!chat.Focused) {
+			auto messages = 0;
+			for (auto i = static_cast<int>(body.size()) - 1; i >= 0; --i) {
+				if (body[i] == '\n') {
+					++messages;
+				}
+
+				if (messages > unfocusedChatMessages) {
+					body = body.substr(i + 1);
+					break;
+				}
+			}
+		}
+
+		auto height = ImGui::CalcTextSize(body.c_str(), nullptr, false, width).y + (ImGui::GetTextLineHeight() / 6.0f);
 		auto pos = ImVec2(inputWidthOffset, io.DisplaySize.y - inputHeightOffset - height);
 
 		ImGui::SetWindowPos(pos, ImGuiCond_Always);
@@ -565,7 +581,7 @@ static void OnRender(IDirect3DDevice9 *device) {
 	
 		ImGui::PushTextWrapPos(width);
 		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, opacity));
-		ImGui::TextWrapped("%s", chat.Raw.c_str());
+		ImGui::TextWrapped("%s", body.c_str());
 		ImGui::PopStyleColor();
 		ImGui::PopTextWrapPos();
 

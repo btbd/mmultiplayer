@@ -272,7 +272,7 @@ static void DollyTab() {
 		controller->PlayerCamera->SetFOV(fov);
 	}
 
-	static bool forceRoll = false;
+	static auto forceRoll = false;
 	auto roll = static_cast<int>(controller->Rotation.Roll % 0x10000);
 	if (ImGui::SliderInt("Roll##dolly", &roll, 0, 0x10000 - 1) && !cameraView) {
 		forceRoll = true;

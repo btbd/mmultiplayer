@@ -7630,12 +7630,13 @@ ImGuiWindow *ImGui::BeginRawScene(const char *name) {
     auto &io = ImGui::GetIO();
     ImGui::SetWindowPos(ImVec2(0, 0), ImGuiCond_Always);
     ImGui::SetWindowSize(ImVec2(io.DisplaySize.x, io.DisplaySize.y), ImGuiCond_Always);
+    ImGui::GetCurrentWindow()->DrawList->PushClipRectFullScreen();
 
     return ImGui::GetCurrentWindow();
 }
 
 void ImGui::EndRawScene() {
-    ImGui::GetCurrentWindow()->DrawList->PushClipRectFullScreen();
+    ImGui::PopClipRect();
     ImGui::End();
     ImGui::PopStyleColor();
     ImGui::PopStyleVar(2);
