@@ -181,8 +181,8 @@ static void Disconnect() {
 
 	players.Mutex.lock();
 	for (auto p : players.List) {
-		if (p->Pawn) {
-			Engine::Despawn(p->Pawn);
+		if (p->Actor) {
+			Engine::Despawn(p->Actor);
 		}
 
 		delete p;
@@ -350,9 +350,9 @@ static void ClientListener() {
 				memcpy(player->LastPacket.Bones, defaultBones, sizeof(defaultBones));
 
 				if (player->Level == client.Level && !loading) {
-					Engine::SpawnCharacter(player->Character, player->Pawn);
+					Engine::SpawnCharacter(player->Character, player->Actor);
 				} else {
-					player->Pawn = nullptr;
+					player->Actor = nullptr;
 				}
 
 				AddChatMessage(player->Name + " joined the room");
@@ -401,13 +401,13 @@ static void ClientListener() {
 					player->Level = msgLevel.get<std::string>();
 
 					if (player->Level == client.Level) {
-						if (!player->Pawn && !loading) {
-							Engine::SpawnCharacter(player->Character, player->Pawn);
+						if (!player->Actor && !loading) {
+							Engine::SpawnCharacter(player->Character, player->Actor);
 						}
 					} else {
-						if (player->Pawn) {
-							Engine::Despawn(player->Pawn);
-							player->Pawn = nullptr;
+						if (player->Actor) {
+							Engine::Despawn(player->Actor);
+							player->Actor = nullptr;
 						}
 					}
 				}
@@ -428,12 +428,12 @@ static void ClientListener() {
 					player->Character = msgCharacter;
 
 					if (!loading) {
-						if (player->Pawn) {
-							Engine::Despawn(player->Pawn);
-							player->Pawn = nullptr;
+						if (player->Actor) {
+							Engine::Despawn(player->Actor);
+							player->Actor = nullptr;
 						}
 
-						Engine::SpawnCharacter(player->Character, player->Pawn);
+						Engine::SpawnCharacter(player->Character, player->Actor);
 					}
 				}
 
@@ -457,9 +457,9 @@ static void ClientListener() {
 						return false;
 					}
 
-					if (p->Pawn) {
-						Engine::Despawn(p->Pawn);
-						p->Pawn = nullptr;
+					if (p->Actor) {
+						Engine::Despawn(p->Actor);
+						p->Actor = nullptr;
 					}
 
 					AddChatMessage(p->Name + " left the room");
@@ -518,8 +518,8 @@ static void OnRender(IDirect3DDevice9 *device) {
 		players.Mutex.lock_shared();
 
 		for (auto p : players.List) {
-			if (p->Level == client.Level && p->Pawn && p->Pawn->Mesh3p) {
-				auto pos = p->Pawn->Location;
+			if (p->Level == client.Level && p->Actor && p->Actor->SkeletalMeshComponent) {
+				auto pos = p->Actor->Location;
 				pos.Z = p->MaxZ + 27.5f;
 
 				if (Engine::WorldToScreen(device, pos)) {
@@ -739,10 +739,10 @@ static void MultiplayerTab() {
 		for (auto p : players.List) {
 			ImGui::Text("%s - %s", p->Name.c_str(), p->Level.c_str());
 			ImGui::SameLine();
-			if (ImGui::Button(("Goto##client-goto-" + std::to_string(p->Id)).c_str()) && p->Level == client.Level && p->Pawn) {
+			if (ImGui::Button(("Goto##client-goto-" + std::to_string(p->Id)).c_str()) && p->Level == client.Level && p->Actor) {
 				auto pawn = Engine::GetPlayerPawn();
 				if (pawn) {
-					pawn->Location = p->Pawn->Location;
+					pawn->Location = p->Actor->Location;
 				}
 			}
 		}
@@ -800,10 +800,10 @@ bool Client::Initialize() {
 		players.Mutex.lock_shared();
 
 		for (auto &p : players.List) {
-			if (p->Pawn == actor && p->Pawn->Mesh3p && p->Id == p->LastPacket.Id) {
-				p->Pawn->Location = p->LastPacket.Position;
-				p->Pawn->Rotation = { 0, p->LastPacket.Yaw, 0 };
-				p->MaxZ = p->Pawn->Mesh3p->GetBoneLocation("Neck", 0).Z;
+			if (p->Actor == actor && p->Actor->SkeletalMeshComponent && p->Id == p->LastPacket.Id) {
+				p->Actor->Location = p->LastPacket.Position;
+				p->Actor->Rotation = { 0, p->LastPacket.Yaw, 0 };
+				p->MaxZ = p->Actor->SkeletalMeshComponent->GetBoneLocation("Neck", 0).Z;
 			}
 		}
 
@@ -814,7 +814,7 @@ bool Client::Initialize() {
 		players.Mutex.lock_shared();
 
 		for (auto &p : players.List) {
-			if (p->Pawn && p->Pawn->Mesh3p && &p->Pawn->Mesh3p->LocalAtoms == bones && p->Id == p->LastPacket.Id) {
+			if (p->Actor && p->Actor->SkeletalMeshComponent && p->Actor->SkeletalMeshComponent->LocalAtoms.Buffer() == bones->Buffer() && p->Id == p->LastPacket.Id) {
 				Engine::TransformBones(p->Character, bones, p->LastPacket.Bones);
 			}
 		}
@@ -832,7 +832,7 @@ bool Client::Initialize() {
 		});
 
 		for (auto &p : players.List) {
-			p->Pawn = nullptr;
+			p->Actor = nullptr;
 		}
 
 		players.Mutex.unlock_shared();
@@ -843,8 +843,8 @@ bool Client::Initialize() {
 			players.Mutex.lock_shared();
 
 			for (auto &p : players.List) {
-				if (!p->Pawn && p->Level == client.Level) {
-					Engine::SpawnCharacter(p->Character, p->Pawn);
+				if (!p->Actor && p->Level == client.Level) {
+					Engine::SpawnCharacter(p->Character, p->Actor);
 				}
 			}
 
@@ -864,11 +864,6 @@ bool Client::Initialize() {
 	Engine::OnPreDeath([]() {
 		players.Mutex.lock_shared();
 		loading = true;
-
-		for (auto &p : players.List) {
-			p->Pawn = nullptr;
-		}
-
 		players.Mutex.unlock_shared();
 	});
 
@@ -877,8 +872,8 @@ bool Client::Initialize() {
 		loading = false;
 
 		for (auto &p : players.List) {
-			if (!p->Pawn && p->Level == client.Level) {
-				Engine::SpawnCharacter(p->Character, p->Pawn);
+			if (!p->Actor && p->Level == client.Level) {
+				Engine::SpawnCharacter(p->Character, p->Actor);
 			}
 		}
 

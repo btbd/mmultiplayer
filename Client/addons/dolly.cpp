@@ -150,8 +150,8 @@ static void FixPlayer() {
 		ForceRoll(true);
 	} else {
 		for (auto &r : recordings) {
-			if (r.Pawn) {
-				r.Pawn->Location = { 0 };
+			if (r.Actor) {
+				r.Actor->Location = { 0 };
 			}
 		}
 
@@ -203,7 +203,7 @@ static void DollyTab() {
 	} else if (ImGui::Button("Start Recording##dolly-record")) {
 		currentRecording.StartFrame = frame;
 		currentRecording.Character = character;
-		Engine::SpawnCharacter(currentRecording.Character, currentRecording.Pawn);
+		Engine::SpawnCharacter(currentRecording.Character, currentRecording.Actor);
 		recording = true;
 	}
 
@@ -341,9 +341,9 @@ static void DollyTab() {
 
 			ImGui::SameLine();
 			if (ImGui::Button(("Delete" + label).c_str())) {
-				if (rec.Pawn) {
-					Engine::Despawn(rec.Pawn);
-					rec.Pawn = nullptr;
+				if (rec.Actor) {
+					Engine::Despawn(rec.Actor);
+					rec.Actor = nullptr;
 				}
 
 				recordings.erase(recordings.begin() + i);
@@ -510,13 +510,13 @@ bool Dolly::Initialize() {
 		}
 
 		for (auto &r : recordings) {
-			if (r.Pawn == actor) {
+			if (r.Actor == actor) {
 				if (frame >= r.StartFrame && frame < r.StartFrame + static_cast<int>(r.Frames.size())) {
 					auto &f = r.Frames[frame - r.StartFrame];
-					r.Pawn->Location = f.Position;
-					r.Pawn->Rotation = f.Rotation;
+					r.Actor->Location = f.Position;
+					r.Actor->Rotation = f.Rotation;
 				} else {
-					r.Pawn->Location = { 0 };
+					r.Actor->Location = { 0 };
 				}
 			}
 		}
@@ -524,7 +524,7 @@ bool Dolly::Initialize() {
 
 	Engine::OnBonesTick([](Classes::TArray<Classes::FBoneAtom> *bones) {
 		for (auto &r : recordings) {
-			if (r.Pawn && &r.Pawn->Mesh3p->LocalAtoms == bones && frame >= r.StartFrame && frame < r.StartFrame + static_cast<int>(r.Frames.size())) {
+			if (r.Actor && r.Actor->SkeletalMeshComponent && r.Actor->SkeletalMeshComponent->LocalAtoms.Buffer() == bones->Buffer() && frame >= r.StartFrame && frame < r.StartFrame + static_cast<int>(r.Frames.size())) {
 				Engine::TransformBones(r.Character, bones, r.Frames[frame - r.StartFrame].Bones);
 			}
 		}
@@ -532,25 +532,13 @@ bool Dolly::Initialize() {
 	
 	Engine::OnPreLevelLoad([](const wchar_t *levelName) {
 		for (auto &r : recordings) {
-			r.Pawn = nullptr;
+			r.Actor = nullptr;
 		}
 	});
 
 	Engine::OnPostLevelLoad([](const wchar_t *levelName) {
 		for (auto &r : recordings) {
-			Engine::SpawnCharacter(r.Character, r.Pawn);
-		}
-	});
-
-	Engine::OnPreDeath([]() {
-		for (auto &r : recordings) {
-			r.Pawn = nullptr;
-		}
-	});
-
-	Engine::OnPostDeath([]() {
-		for (auto &r : recordings) {
-			Engine::SpawnCharacter(r.Character, r.Pawn);
+			Engine::SpawnCharacter(r.Character, r.Actor);
 		}
 	});
 

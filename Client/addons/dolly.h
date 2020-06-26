@@ -30,7 +30,7 @@ public:
 
 		int StartFrame;
 		Engine::Character Character;
-		Classes::ATdPlayerPawn *Pawn;
+		Classes::ASkeletalMeshActorSpawnable *Actor;
 		std::vector<Frame> Frames;
 	};
 };

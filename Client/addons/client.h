@@ -29,7 +29,7 @@ public:
 		Engine::Character Character;
 		std::string Name;
 		std::string Level;
-		Classes::ATdPlayerPawn *Pawn;
+		Classes::ASkeletalMeshActorSpawnable *Actor;
 		float MaxZ;
 		PACKET LastPacket;
 	};

@@ -29,7 +29,7 @@ static struct {
 } commands;
 
 static struct {
-	std::vector<std::pair<Engine::Character, Classes::ATdPlayerPawn *&>> Queue;
+	std::vector<std::pair<Engine::Character, Classes::ASkeletalMeshActorSpawnable *&>> Queue;
 	std::mutex Mutex;
 } spawns;
 
@@ -62,7 +62,7 @@ static struct {
 
 static struct {
 	std::vector<BonesTickCallback> Callbacks;
-	void *(__thiscall *Original)(void *, void *, void *, void *, void *) = nullptr;
+	void *(__thiscall *Original)(void *, void *) = nullptr;
 } bonesTick;
 
 static struct {
@@ -285,14 +285,16 @@ void *__fastcall ActorTickHook(Classes::AActor *actor, void *idle, void *arg) {
 	return actorTick.Original(actor, arg);;
 }
 
-void *__fastcall BonesTickHook(void *this_, void *idle, Classes::TArray<Classes::FBoneAtom> *bones, void *arg3, void *arg4, void *arg5) {
-	auto ret = bonesTick.Original(this_, bones, arg3, arg4, arg5);
+void *__fastcall BonesTickHook(void *this_, void *idle, void *arg) {
+	auto bones = static_cast<Classes::TArray<Classes::FBoneAtom> *>(bonesTick.Original(this_, arg));
 
-	for (auto callback : bonesTick.Callbacks) {
-		callback(bones);
+	if (bones->Num()) {
+		for (auto callback : bonesTick.Callbacks) {
+			callback(bones);
+		}
 	}
 
-	return ret;
+	return bones;
 }
 
 int *__fastcall ProjectionTick(Classes::FMatrix *matrix, void *idle, void *arg) {
@@ -300,9 +302,9 @@ int *__fastcall ProjectionTick(Classes::FMatrix *matrix, void *idle, void *arg) 
 	return projectionTick.Original(matrix, arg);
 }
 
-Classes::ATdPlayerPawn *SpawnCharacter(Engine::Character character) {
+Classes::ASkeletalMeshActorSpawnable *SpawnCharacter(Engine::Character character) {
 	static const wchar_t *meshes[] = {
-		nullptr, // Faith
+		L"CH_TKY_Crim_Fixer.SK_TKY_Crim_Fixer", // Faith
 		L"CH_TKY_Cop_Patrol_Female.SK_TKY_Cop_Patrol_Female", // Kate
 		L"CH_Celeste.SK_Celeste", // Celeste
 		L"CH_TKY_Cop_Pursuit_Female.SK_TKY_Cop_Pursuit_Female", // Assault Celeste
@@ -315,7 +317,18 @@ Classes::ATdPlayerPawn *SpawnCharacter(Engine::Character character) {
 
 	static const std::vector<std::wstring> materials[] = {
 		// Faith
-		{},
+		{
+			L"MaterialInstanceConstant Transient.MaterialInstanceConstant_69",
+			L"MaterialInstanceConstant Transient.MaterialInstanceConstant_70",
+			L"MaterialInstanceConstant Transient.MaterialInstanceConstant_71",
+			L"MaterialInstanceConstant Transient.MaterialInstanceConstant_72",
+			L"MaterialInstanceConstant Transient.MaterialInstanceConstant_73",
+			L"MaterialInstanceConstant Transient.MaterialInstanceConstant_74",
+			L"MaterialInstanceConstant Transient.MaterialInstanceConstant_75",
+			L"MaterialInstanceConstant Transient.MaterialInstanceConstant_76",
+			L"MaterialInstanceConstant Transient.MaterialInstanceConstant_77",
+			L"MaterialInstanceConstant Transient.MaterialInstanceConstant_78",
+		},
 
 		// Kate
 		{
@@ -388,25 +401,23 @@ Classes::ATdPlayerPawn *SpawnCharacter(Engine::Character character) {
 		return nullptr;
 	}
 
-	auto pawn = static_cast<Classes::ATdPlayerPawn *>(player->Spawn(Classes::ATdPlayerPawn::StaticClass(), 0, 0, { 0 }, { 0 }, 0, true));
-	pawn->SetCollisionType(Classes::ECollisionType::COLLIDE_NoCollision);
+	auto actor = static_cast<Classes::ASkeletalMeshActorSpawnable *>(player->Spawn(Classes::ASkeletalMeshActorSpawnable::StaticClass(), 0, 0, { 0 }, { 0 }, 0, true));
+	actor->SetCollisionType(Classes::ECollisionType::COLLIDE_NoCollision);
 
-	if (character != Engine::Character::Faith) {
-		auto mesh = pawn->Mesh3p;
-		mesh->SetSkeletalMesh(static_cast<Classes::USkeletalMesh *>(pawn->STATIC_DynamicLoadObject(meshes[static_cast<size_t>(character)], Classes::USkeletalMesh::StaticClass(), false)), false);
+	auto mesh = actor->SkeletalMeshComponent;
+	mesh->SetSkeletalMesh(static_cast<Classes::USkeletalMesh *>(actor->STATIC_DynamicLoadObject(meshes[static_cast<size_t>(character)], Classes::USkeletalMesh::StaticClass(), false)), false);
 
-		auto mats = materials[static_cast<size_t>(character)];
-		for (auto i = 0UL; i < mats.size(); ++i) {
-			mesh->SetMaterial(i, static_cast<Classes::UMaterialInterface *>(pawn->STATIC_DynamicLoadObject(mats[i].c_str(), Classes::UMaterialInterface::StaticClass(), false)));
-		}
-
-		if (character == Engine::Character::Kate || character == Engine::Character::Miller || character == Engine::Character::Kreeg) {
-			pawn->PrePivot.Z = 94;
-		}
+	auto mats = materials[static_cast<size_t>(character)];
+	for (auto i = 0UL; i < mats.size(); ++i) {
+		mesh->SetMaterial(i, static_cast<Classes::UMaterialInterface *>(actor->STATIC_DynamicLoadObject(mats[i].c_str(), Classes::UMaterialInterface::StaticClass(), false)));
 	}
 
-	pawn->Mesh3p->bUpdateSkelWhenNotRendered = true;
-	return pawn;
+	if (character == Engine::Character::Kate || character == Engine::Character::Miller || character == Engine::Character::Kreeg) {
+		actor->PrePivot.Z = 94;
+	}
+
+	mesh->bUpdateSkelWhenNotRendered = true;
+	return actor;
 }
 
 void __fastcall TickHook(float *scales, void *idle, int arg, float delta) {
@@ -573,7 +584,7 @@ Classes::ATdPlayerPawn *Engine::GetPlayerPawn(bool update) {
 	return cache;
 }
 
-void Engine::SpawnCharacter(Character character, Classes::ATdPlayerPawn *&spawned) {
+void Engine::SpawnCharacter(Character character, Classes::ASkeletalMeshActorSpawnable *&spawned) {
 	spawned = nullptr;
 	
 	spawns.Mutex.lock();
@@ -581,12 +592,12 @@ void Engine::SpawnCharacter(Character character, Classes::ATdPlayerPawn *&spawne
 	spawns.Mutex.unlock();
 }
 
-void Engine::Despawn(Classes::AActor *actor) {
+void Engine::Despawn(Classes::ASkeletalMeshActorSpawnable *actor) {
 	if (!actor) {
 		return;
 	}
 
-	actor->Location = { 1e10f, 1e10f, 1e10f };
+	actor->ShutDown();
 }
 
 void Engine::TransformBones(Character character, Classes::TArray<Classes::FBoneAtom> *destBones, Classes::FBoneAtom *src) {
@@ -752,16 +763,6 @@ void Engine::BlockInput(bool block) {
 	ImGui::GetIO().MouseDrawCursor = window.BlockInput = block;
 }
 
-// This prevents a null derefence since the game's AI does not like multiple player pawns 
-void *(__thiscall *AiUpdateTdPlayerPawnOriginal)(void *, void *, void *) = nullptr;
-void *__fastcall AiUpdateTdPlayerPawnHook(void *this_, void *idle, void *arg1, void *arg2) {
-	if (!this_) {
-		return nullptr;
-	}
-
-	return AiUpdateTdPlayerPawnOriginal(this_, arg1, arg2);
-}
-
 bool Engine::Initialize() {
 	void *ptr = nullptr;
 
@@ -805,17 +806,6 @@ bool Engine::Initialize() {
 	// PeekMessage
 	if (!Hook::TrampolineHook(PeekMessageHook, PeekMessageW, reinterpret_cast<void **>(&window.PeekMessage))) {
 		MessageBoxA(0, "Failed to hook D3D9 Reset", "Failure", MB_ICONERROR);
-		return false;
-	}
-
-	// AiUpdateTdPlayerPawn
-	if (!(ptr = Pattern::FindPattern("\xE8\x00\x00\x00\x00\x8B\x4F\x40\xE8", "x????xxxx"))) {
-		MessageBoxA(0, "Failed to find AiUpdateTdPlayerPawn", "Failure", MB_ICONERROR);
-		return false;
-	}
-
-	if (!Hook::TrampolineHook(AiUpdateTdPlayerPawnHook, RELATIVE_ADDR(ptr, 5), reinterpret_cast<void **>(&AiUpdateTdPlayerPawnOriginal))) {
-		MessageBoxA(0, "Failed to hook AiUpdateTdPlayerPawn", "Failure", MB_ICONERROR);
 		return false;
 	}
 
@@ -880,12 +870,12 @@ bool Engine::Initialize() {
 	}
 
 	// BonesTick
-	if (!(ptr = Pattern::FindPattern("\x55\x8B\xEC\x83\xE4\xF0\x6A\xFF\x68\x00\x00\x00\x00\x64\xA1\x00\x00\x00\x00\x50\x81\xEC\x00\x00\x00\x00\x53\x56\x57\xA1\x00\x00\x00\x00\x33\xC4\x50\x8D\x84\x24\x00\x00\x00\x00\x64\xA3\x00\x00\x00\x00\x8B\x45\x0C", "xxxxxxxxx????xx????xxx????xxxx????xxxxxx????xx????xxx"))) {
+	if (!(ptr = Pattern::FindPattern("\xE8\x00\x00\x00\x00\x8B\x74\x24\x14\x8D\x7B\x68", "x????xxxxxxx"))) {
 		MessageBoxA(0, "Failed to find BonesTick", "Failure", MB_ICONERROR);
 		return false;
 	}
 
-	if (!Hook::TrampolineHook(BonesTickHook, ptr, reinterpret_cast<void **>(&bonesTick.Original))) {
+	if (!Hook::TrampolineHook(BonesTickHook, RELATIVE_ADDR(ptr, 5), reinterpret_cast<void **>(&bonesTick.Original))) {
 		MessageBoxA(0, "Failed to hook BonesTick", "Failure", MB_ICONERROR);
 		return false;
 	}

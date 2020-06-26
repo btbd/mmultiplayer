@@ -24,8 +24,8 @@ namespace Engine {
 	Classes::AWorldInfo *GetWorld(bool update = false);
 	Classes::ATdPlayerController *GetPlayerController(bool update = false);
 	Classes::ATdPlayerPawn *GetPlayerPawn(bool update = false);
-	void SpawnCharacter(Character character, Classes::ATdPlayerPawn *&spawned);
-	void Despawn(Classes::AActor *actor);
+	void SpawnCharacter(Character character, Classes::ASkeletalMeshActorSpawnable *&spawned);
+	void Despawn(Classes::ASkeletalMeshActorSpawnable *actor);
 	void TransformBones(Character character, Classes::TArray<Classes::FBoneAtom> *dest, Classes::FBoneAtom *src);
 
 	bool IsKeyDown(int);
