@@ -52,7 +52,7 @@ static std::string GetPrettyPointer(long ptr) {
 	return buffer;
 }
 
-static long WINAPI ExceptionHandler(PEXCEPTION_POINTERS exception) {
+static long WINAPI ExceptionHandler(EXCEPTION_POINTERS *exception) {
 	SuspendOtherThreads();
 
 	Debug::CreateConsole();
