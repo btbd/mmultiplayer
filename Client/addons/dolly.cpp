@@ -142,15 +142,14 @@ static void FixPlayer() {
 
 	auto hide = playing || cameraView;
 
-	pawn->SetCollisionType(hide ? Classes::ECollisionType::COLLIDE_NoCollision : Classes::ECollisionType::COLLIDE_BlockAllButWeapons);
-	pawn->SetHidden(hide);
-	pawn->Mesh->SetHidden(hide);
-	pawn->Mesh1p->SetHidden(hide);
-	pawn->Mesh1pLowerBody->SetHidden(hide);
-	pawn->Mesh3p->SetHidden(hide);
+	pawn->CollisionType = hide ? Classes::ECollisionType::COLLIDE_NoCollision : Classes::ECollisionType::COLLIDE_BlockAllButWeapons;
 	pawn->bCollideWorld = !hide;
 	controller->bCanBeDamaged = !hide;
 	controller->PlayerCamera->SetFOV(controller->DefaultFOV);
+
+	pawn->Mesh1p->SetHidden(hide);
+	pawn->Mesh1pLowerBody->SetHidden(hide);
+	pawn->Mesh3p->SetHidden(hide);
 
 	if (hide) {
 		ForceRoll(true);
