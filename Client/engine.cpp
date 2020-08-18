@@ -1,4 +1,14 @@
-#include "stdafx.h"
+#include <vector>
+#include <mutex>
+
+#include "engine.h"
+#include "pattern.h"
+#include "hook.h"
+
+#include "imgui/imgui.h"
+#include "imgui/imgui_internal.h"
+#include "imgui/imgui_impl_dx9.h"
+#include "imgui/imgui_impl_win32.h"
 
 // D3D9 and window hooks
 static struct {
@@ -674,7 +684,7 @@ D3DXVECTOR4 *WINAPI D3DXVec4Transform(D3DXVECTOR4 *pOut, const D3DXVECTOR4 *pV, 
 }
 
 bool Engine::IsKeyDown(int vk) {
-	return !window.BlockInput && vk >= 0 && vk < LENGTH(window.KeysDown) && window.KeysDown[vk];
+	return !window.BlockInput && vk >= 0 && vk < ARRAYSIZE(window.KeysDown) && window.KeysDown[vk];
 }
 
 bool Engine::WorldToScreen(IDirect3DDevice9 *device, Classes::FVector &inOutLocation) {

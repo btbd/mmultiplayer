@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../addon.h"
+
 class Trainer : public Addon {
 public:
 	typedef struct {

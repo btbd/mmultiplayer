@@ -1,4 +1,6 @@
-#include "stdafx.h"
+#pragma once
+
+#include <Windows.h>
 
 namespace Pattern {
 	bool CheckMask(void *base, const char *pattern, const char *mask);

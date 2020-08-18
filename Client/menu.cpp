@@ -1,4 +1,14 @@
-#include "stdafx.h"
+#include <vector>
+#include <locale>
+#include <codecvt>
+#include <d3d9.h>
+
+#include "debug.h"
+#include "engine.h"
+#include "settings.h"
+#include "imgui/imgui.h"
+#include "imgui/imgui_internal.h"
+#include "menu.h"
 
 static auto show = false, showPlayerInfo = false;
 static std::vector<MenuTab> tabs;
@@ -120,10 +130,7 @@ static void EngineTab() {
 	ImGui::SameLine();
 
 	if (ImGui::Button("Debug Console##client-show-console")) {
-		AllocConsole();
-		static_cast<VOID>(freopen("CONIN$", "r", stdin));
-		static_cast<VOID>(freopen("CONOUT$", "w", stdout));
-		static_cast<VOID>(freopen("CONOUT$", "w", stderr));
+		Debug::CreateConsole();
 	}
 }
 

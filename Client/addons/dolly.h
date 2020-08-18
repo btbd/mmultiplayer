@@ -1,4 +1,8 @@
-#include "../stdafx.h"
+#pragma once
+
+#include <vector>
+#include "../engine.h"
+#include "../addon.h"
 
 class Dolly : public Addon {
 public:

@@ -1,4 +1,6 @@
-#include "stdafx.h"
+#pragma once
+
+#include <string>
 
 typedef void(*MenuTabCallback)();
 

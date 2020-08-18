@@ -39,9 +39,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="stdafx.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="SDK\ME_ALAudio_classes.hpp">
       <Filter>Header Files\sdk</Filter>
     </ClInclude>
@@ -255,6 +252,9 @@
     <ClInclude Include="addons\trainer.h">
       <Filter>Header Files\addons</Filter>
     </ClInclude>
+    <ClInclude Include="debug.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -352,6 +352,9 @@
     </ClCompile>
     <ClCompile Include="addons\trainer.cpp">
       <Filter>Source Files\addons</Filter>
+    </ClCompile>
+    <ClCompile Include="debug.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

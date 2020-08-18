@@ -1,4 +1,11 @@
-#include "../stdafx.h"
+#include "../engine.h"
+#include "../menu.h"
+#include "../settings.h"
+#include "../pattern.h"
+#include "../hook.h"
+#include "../imgui/imgui.h"
+#include "../imgui/imgui_internal.h"
+#include "trainer.h"
 
 static auto enabled = false, overlay = true, god = false, kg = false, beamer = false, strang = false;
 static int saveKeybind = 0, loadKeybind = 0, godKeybind = 0, kgKeybind = 0, beamerKeybind = 0, strangKeybind = 0;
@@ -7,7 +14,7 @@ static struct {
 	bool Enabled = false;
 	int Keybind = 0, UpKeybind = 0, DownKeybind = 0, FasterKeybind = 0, SlowerKeybind = 0;
 	Classes::FVector Location, Velocity;
-	float Speed = 6.0f;
+	float Speed = 3.0f;
 } fly;
 
 static void(__thiscall *StateHandlerOriginal)(void *, float, int) = nullptr;

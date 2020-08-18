@@ -129,6 +129,7 @@
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -149,6 +150,8 @@
       <PreprocessorDefinitions>NDEBUG;CLIENT_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -230,7 +233,7 @@
     <ClInclude Include="SDK\ME_WinDrv_parameters.hpp" />
     <ClInclude Include="SDK\ME_WinDrv_structs.hpp" />
     <ClInclude Include="settings.h" />
-    <ClInclude Include="stdafx.h" />
+    <ClInclude Include="debug.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="addons\client.cpp" />
@@ -265,6 +268,7 @@
     <ClCompile Include="SDK\ME_UnrealEd_functions.cpp" />
     <ClCompile Include="SDK\ME_WinDrv_functions.cpp" />
     <ClCompile Include="settings.cpp" />
+    <ClCompile Include="debug.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

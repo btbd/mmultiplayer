@@ -1,4 +1,21 @@
-#include "../stdafx.h"
+#include <vector>
+#include <mutex>
+#include <shared_mutex>
+#include <locale>
+#include <codecvt>
+
+#include <WinSock2.h>
+#include <WS2tcpip.h>
+#pragma comment(lib, "ws2_32.lib")
+
+#include "../engine.h"
+#include "../json.h"
+#include "../imgui/imgui.h"
+#include "../imgui/imgui_internal.h"
+#include "../settings.h"
+#include "../menu.h"
+
+#include "client.h"
 
 static char roomInput[0xFF] = { 0 };
 static char nameInput[0xFF] = { 0 };
@@ -211,7 +228,7 @@ static void PlayerHandler() {
 			memcpy(&player->LastPacket, &packet, FIELD_OFFSET(Client::PACKET_COMPRESSED, CompressedBones));
 
 			auto bonesBase = reinterpret_cast<byte *>(player->LastPacket.Bones);
-			for (auto i = 0; i < LENGTH(CompressedBoneOffsets); ++i) {
+			for (auto i = 0; i < ARRAYSIZE(CompressedBoneOffsets); ++i) {
 				*reinterpret_cast<float *>(bonesBase + CompressedBoneOffsets[i]) = static_cast<float>(packet.CompressedBones[i]) / 215.f;
 			}
 		}
@@ -497,7 +514,7 @@ static void OnTick(float delta) {
 			packet.Yaw = pawn->Rotation.Yaw % 0x10000;
 
 			auto bonesBase = reinterpret_cast<byte *>(pawn->Mesh3p->LocalAtoms.Buffer());
-			for (auto i = 0; i < LENGTH(CompressedBoneOffsets); ++i) {
+			for (auto i = 0; i < ARRAYSIZE(CompressedBoneOffsets); ++i) {
 				packet.CompressedBones[i] = static_cast<short>(roundf(*reinterpret_cast<float *>(bonesBase + CompressedBoneOffsets[i]) * 215.0f));
 			}
 
@@ -755,10 +772,10 @@ static void MultiplayerTab() {
 bool Client::Initialize() {
 	// Settings
 	client.Name = Settings::GetSetting("client", "name", "anonymous").get<std::string>();
-	strncpy(nameInput, client.Name.c_str(), sizeof(nameInput) - 1);
+	strncpy_s(nameInput, sizeof(nameInput) - 1, client.Name.c_str(), sizeof(nameInput) - 1);
 
 	room = Settings::GetSetting("client", "room", "lobby").get<std::string>();
-	strncpy(roomInput, room.c_str(), sizeof(roomInput) - 1);
+	strncpy_s(roomInput, sizeof(roomInput) - 1, room.c_str(), sizeof(roomInput) - 1);
 
 	client.Character = Settings::GetSetting("client", "character", Engine::Character::Faith).get<Engine::Character>();
 

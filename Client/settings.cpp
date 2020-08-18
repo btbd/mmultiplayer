@@ -1,4 +1,7 @@
-#include "stdafx.h"
+#include <fstream>
+#include <Windows.h>
+
+#include "settings.h"
 
 static json settings;
 

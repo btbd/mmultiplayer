@@ -1,4 +1,10 @@
-#include "../stdafx.h"
+#include <algorithm>
+
+#include "../pattern.h"
+#include "../menu.h"
+#include "../imgui/imgui.h"
+#include "../imgui/imgui_internal.h"
+#include "dolly.h"
 
 static auto recording = false, playing = false, cameraView = false;
 
@@ -496,6 +502,7 @@ bool Dolly::Initialize() {
 	unsigned long oldProtect;
 	if (!VirtualProtect(forceRollPatch, sizeof(forceRollPatchOriginal), PAGE_EXECUTE_READWRITE, &oldProtect)) {
 		MessageBoxA(0, "Failed to change page protection for rollPatch", "Failure", 0);
+		return false;
 	}
 
 	memcpy(forceRollPatchOriginal, forceRollPatch, sizeof(forceRollPatchOriginal));

@@ -1,7 +1,18 @@
-#include "stdafx.h"
+#include <windows.h>
+
+#include "debug.h"
+#include "menu.h"
+#include "settings.h"
+#include "addon.h"
+
+#include "addons/dolly.h"
+#include "addons/client.h"
+#include "addons/trainer.h"
 
 BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
 	if (reason == DLL_PROCESS_ATTACH && GetModuleHandle(L"MirrorsEdge.exe")) {
+		Debug::Initialize();
+
 		while (!GetModuleHandle(L"d3d9.dll")) {
 			Sleep(100);
 		}

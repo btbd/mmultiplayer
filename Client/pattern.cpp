@@ -1,4 +1,7 @@
-#include "stdafx.h"
+#include <windows.h>
+#include <psapi.h>
+
+#include "pattern.h"
 
 bool Pattern::CheckMask(void *base, const char *pattern, const char *mask) {
 	for (auto b = reinterpret_cast<char *>(base); *mask; ++b, ++pattern, ++mask) {
