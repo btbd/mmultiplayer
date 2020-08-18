@@ -18,6 +18,8 @@ static std::vector<Dolly::Recording> recordings;
 static void *forceRollPatch = nullptr;
 static byte forceRollPatchOriginal[6];
 
+static bool hideQueued = false;
+
 static void ForceRoll(bool force) {
 	if (force) {
 		memcpy(forceRollPatch, "\x90\x90\x90\x90\x90\x90", 6);
@@ -146,10 +148,7 @@ static void FixPlayer() {
 	pawn->bCollideWorld = !hide;
 	controller->bCanBeDamaged = !hide;
 	controller->PlayerCamera->SetFOV(controller->DefaultFOV);
-
-	pawn->Mesh1p->SetHidden(hide);
-	pawn->Mesh1pLowerBody->SetHidden(hide);
-	pawn->Mesh3p->SetHidden(hide);
+	hideQueued = true;
 
 	if (hide) {
 		ForceRoll(true);
@@ -513,6 +512,18 @@ bool Dolly::Initialize() {
 	Engine::OnActorTick([](Classes::AActor *actor) {
 		if (!actor) {
 			return;
+		}
+
+		if (hideQueued) {
+			hideQueued = false;
+
+			auto pawn = Engine::GetPlayerPawn();
+			if (pawn) {
+				auto hide = playing || cameraView;
+				pawn->Mesh1p->SetHidden(hide);
+				pawn->Mesh1pLowerBody->SetHidden(hide);
+				pawn->Mesh3p->SetHidden(hide);
+			}
 		}
 
 		for (auto &r : recordings) {
