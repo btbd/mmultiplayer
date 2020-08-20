@@ -26,6 +26,7 @@ static struct {
 	std::vector<InputCallback> InputCallbacks;
 	std::vector<InputCallback> SuperInputCallbacks;
 
+	HWND Window;
 	WNDPROC WndProc = nullptr;
 	BOOL(WINAPI *PeekMessage)(LPMSG, HWND, UINT, UINT, UINT) = nullptr;
 } window;
@@ -95,6 +96,8 @@ HRESULT WINAPI EndSceneHook(IDirect3DDevice9 *device) {
 
 		ImGui::CreateContext();
 		ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\verdana.ttf", 16.0f);
+
+		window.Window = params.hFocusWindow;
 		ImGui_ImplWin32_Init(params.hFocusWindow);
 		ImGui_ImplDX9_Init(device);
 
@@ -130,6 +133,7 @@ HRESULT WINAPI ResetHook(IDirect3DDevice9 *pDevice, D3DPRESENT_PARAMETERS *param
 
 	auto ret = resetScene.Original(pDevice, params);
 
+	window.Window = params->hDeviceWindow;
 	ImGui_ImplWin32_Init(params->hDeviceWindow);
 	ImGui_ImplDX9_Init(pDevice);
 
@@ -431,8 +435,6 @@ Classes::ASkeletalMeshActorSpawnable *SpawnCharacter(Engine::Character character
 }
 
 void __fastcall TickHook(float *scales, void *idle, int arg, float delta) {
-	tick.Original(scales, arg, delta);
-
 	if (Engine::GetPlayerPawn(true)) {
 		// Queues must be executed inside the context of an engine thread in sync with a tick
 		if (commands.Queue.size() > 0) {
@@ -471,6 +473,8 @@ void __fastcall TickHook(float *scales, void *idle, int arg, float delta) {
 	for (auto callback : tick.Callbacks) {
 		callback(delta);
 	}
+
+	tick.Original(scales, arg, delta);
 }
 
 Classes::UTdGameEngine *Engine::GetEngine(bool update) {
@@ -518,9 +522,9 @@ Classes::UTdConsole *Engine::GetConsole(bool update) {
 	return cache;
 }
 
-void Engine::ExecuteCommand(Classes::FString command) {
+void Engine::ExecuteCommand(const wchar_t *command) {
 	commands.Mutex.lock();
-	commands.Queue.push_back(std::wstring(command.c_str()));
+	commands.Queue.push_back(command);
 	commands.Mutex.unlock();
 }
 
@@ -723,6 +727,10 @@ bool Engine::WorldToScreen(IDirect3DDevice9 *device, Classes::FVector &inOutLoca
 	};
 
 	return !(out.z < 0 || out.w < 0);
+}
+
+HWND Engine::GetWindow() {
+	return window.Window;
 }
 
 void Engine::OnRenderScene(RenderSceneCallback callback) {

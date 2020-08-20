@@ -13,6 +13,7 @@
 static auto show = false, showPlayerInfo = false;
 static std::vector<MenuTab> tabs;
 static int showKeybind = 0;
+static std::wstring levelName;
 
 static void RenderMenu(IDirect3DDevice9 *device) {
 	if (show) {
@@ -20,7 +21,7 @@ static void RenderMenu(IDirect3DDevice9 *device) {
 		ImGui::BeginTabBar("");
 
 		for (auto tab : tabs) {
-			if (ImGui::BeginTabItem(tab.Name->c_str())) {
+			if (ImGui::BeginTabItem(tab.Name.c_str())) {
 				tab.Callback();
 				ImGui::EndTabItem();
 			}
@@ -143,9 +144,13 @@ static void WorldTab() {
 	ImGui::InputFloat("Time Dilation##world-time-dilation", &world->TimeDilation);
 	ImGui::InputFloat("Gravity##-world-gravity", &world->WorldGravityZ);
 
+	if (levelName.empty()) {
+		levelName = world->GetMapName(false).c_str();
+	}
+
 	auto levels = world->StreamingLevels;
-	if (ImGui::TreeNode("world##world-levels", "%ws (%d)", world->GetMapName(false).c_str(), levels.Num())) {
-		for (DWORD i = 0; i < levels.Num(); ++i) {
+	if (ImGui::TreeNode("world##world-levels", "%ws (%d)", levelName.c_str(), levels.Num())) {
+		for (auto i = 0UL; i < levels.Num(); ++i) {
 			auto level = levels.GetByIndex(i);
 			if (level) {
 				bool check = level->bShouldBeLoaded;
@@ -169,46 +174,45 @@ void PlayerTab() {
 	}
 }
 
-namespace Menu {
-	void AddTab(const char *name, MenuTabCallback callback) {
-		tabs.push_back({
-			new std::string(name),
-			callback,
-		});
-	}
+void Menu::AddTab(const char *name, MenuTabCallback callback) {
+	tabs.push_back({ name, callback });
+}
 
-	void Hide() {
-		show = false;
-		Engine::BlockInput(false);
-	}
+void Menu::Hide() {
+	show = false;
+	Engine::BlockInput(false);
+}
 
-	void Show() {
-		show = true;
-		Engine::BlockInput(true);
-	}
+void Menu::Show() {
+	show = true;
+	Engine::BlockInput(true);
+}
 
-	bool Initialize() {
-		showKeybind = Settings::GetSetting("menu", "showKeybind", VK_INSERT);
-		showPlayerInfo = Settings::GetSetting("player", "showInfo", false);
+bool Menu::Initialize() {
+	showKeybind = Settings::GetSetting("menu", "showKeybind", VK_INSERT);
+	showPlayerInfo = Settings::GetSetting("player", "showInfo", false);
 
-		Engine::OnRenderScene(RenderMenu);
+	Engine::OnRenderScene(RenderMenu);
 
-		Engine::OnInput([](unsigned int &msg, int keycode) {
-			if (!show && msg == WM_KEYUP && keycode == showKeybind) {
-				Show();
-			}
-		});
+	Engine::OnInput([](unsigned int &msg, int keycode) {
+		if (!show && msg == WM_KEYUP && keycode == showKeybind) {
+			Show();
+		}
+	});
 
-		Engine::OnSuperInput([](unsigned int &msg, int keycode) {
-			if (show && msg == WM_KEYUP && (keycode == showKeybind || keycode == VK_ESCAPE)) {
-				Hide();
-			}
-		});
+	Engine::OnSuperInput([](unsigned int &msg, int keycode) {
+		if (show && msg == WM_KEYUP && (keycode == showKeybind || keycode == VK_ESCAPE)) {
+			Hide();
+		}
+	});
 
-		AddTab("Engine", EngineTab);
-		AddTab("World", WorldTab);
-		AddTab("Player", PlayerTab);
+	Engine::OnPostLevelLoad([](const wchar_t *newLevelName) {
+		levelName = newLevelName;
+	});
 
-		return true;
-	}
+	AddTab("Engine", EngineTab);
+	AddTab("World", WorldTab);
+	AddTab("Player", PlayerTab);
+
+	return true;
 }

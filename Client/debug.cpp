@@ -5,6 +5,7 @@
 #include <TlHelp32.h>
 #include <Psapi.h>
 
+#include "engine.h"
 #include "debug.h"
 #include "hook.h"
 #include "pattern.h"
@@ -53,7 +54,16 @@ static std::string GetPrettyPointer(long ptr) {
 }
 
 static long WINAPI ExceptionHandler(EXCEPTION_POINTERS *exception) {
+	if (IsDebuggerPresent()) {
+		return EXCEPTION_CONTINUE_SEARCH;
+	}
+
 	SuspendOtherThreads();
+
+	HWND window = Engine::GetWindow();
+	if (window) {
+		DestroyWindow(window);
+	}
 
 	Debug::CreateConsole();
 
@@ -96,7 +106,7 @@ static long WINAPI ExceptionHandler(EXCEPTION_POINTERS *exception) {
 	printf("Press any key to exit...");
 	static_cast<void>(_getch());
 
-	exit(0);
+	exit(1);
 
 	return EXCEPTION_CONTINUE_SEARCH;
 }

@@ -349,7 +349,7 @@ static void OnRender(IDirect3DDevice9 *) {
 	if (text != "") {
 		static const auto padding = 5.0f;
 
-		auto window = ImGui::BeginRawScene("##client-backbuffer-nametags");
+		auto window = ImGui::BeginRawScene("##trainer-state");
 		auto &io = ImGui::GetIO();
 		auto width = ImGui::CalcTextSize(text.c_str(), nullptr, false).x;
 

@@ -5,7 +5,7 @@
 typedef void(*MenuTabCallback)();
 
 typedef struct {
-	std::string *Name;
+	std::string Name;
 	MenuTabCallback Callback;
 } MenuTab;
 

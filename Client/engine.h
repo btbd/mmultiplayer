@@ -27,7 +27,7 @@ namespace Engine {
 	Classes::UTdGameEngine *GetEngine(bool update = false);
 	Classes::UTdGameViewportClient *GetViewportClient(bool update = false);
 	Classes::UTdConsole *GetConsole(bool update = false);
-	void ExecuteCommand(Classes::FString command);
+	void ExecuteCommand(const wchar_t *command);
 	Classes::AWorldInfo *GetWorld(bool update = false);
 	Classes::ATdPlayerController *GetPlayerController(bool update = false);
 	Classes::ATdPlayerPawn *GetPlayerPawn(bool update = false);
@@ -37,6 +37,7 @@ namespace Engine {
 
 	bool IsKeyDown(int);
 	bool WorldToScreen(IDirect3DDevice9 *device, Classes::FVector &inOutLocation);
+	HWND GetWindow();
 	void OnRenderScene(RenderSceneCallback callback);
 	void OnProcessEvent(ProcessEventCallback callback);
 	void OnPreLevelLoad(LevelLoadCallback callback);
