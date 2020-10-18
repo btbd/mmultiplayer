@@ -2,16 +2,18 @@
 
 #include <string>
 
-typedef void(*MenuTabCallback)();
+typedef void (*MenuTabCallback)();
 
 typedef struct {
-	std::string Name;
-	MenuTabCallback Callback;
+    std::string Name;
+    MenuTabCallback Callback;
 } MenuTab;
 
 namespace Menu {
-	void AddTab(const char *name, MenuTabCallback callback);
-	void Hide();
-	void Show();
-	bool Initialize();
-}
+
+void AddTab(const char *name, MenuTabCallback callback);
+void Hide();
+void Show();
+bool Initialize();
+
+} // namespace Menu
