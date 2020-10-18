@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../addon.h"
+#include "../sdk.h"
 
 class Trainer : public Addon {
   public:
