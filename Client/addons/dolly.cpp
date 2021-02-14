@@ -147,6 +147,7 @@ static void FixPlayer() {
     auto hide = playing || cameraView;
 
     pawn->bCollideWorld = !hide;
+    pawn->Physics = hide ? Classes::EPhysics::PHYS_None : Classes::EPhysics::PHYS_Walking;
     controller->bCanBeDamaged = !hide;
     controller->PlayerCamera->SetFOV(controller->DefaultFOV);
     hideQueued = true;
