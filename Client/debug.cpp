@@ -10,6 +10,33 @@
 #include "hook.h"
 #include "pattern.h"
 
+static bool GetImageBase(void *pc, void **base) {
+    // CBA to use PEB
+    const auto snapshot =
+        CreateToolhelp32Snapshot(TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, GetCurrentProcessId());
+
+    if (snapshot == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    MODULEENTRY32 entry = {sizeof(MODULEENTRY32)};
+    if (Module32First(snapshot, &entry)) {
+        do {
+            if (pc >= entry.modBaseAddr && pc < entry.modBaseAddr + entry.modBaseSize) {
+                if (base) {
+                    *base = reinterpret_cast<void *>(entry.modBaseAddr);
+                }
+                
+                CloseHandle(snapshot);
+                return true;
+            }
+        } while (Module32Next(snapshot, &entry));
+    }
+
+    CloseHandle(snapshot);
+    return false;
+}
+
 static void SuspendOtherThreads() {
     const auto snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (snapshot == INVALID_HANDLE_VALUE) {
@@ -22,8 +49,7 @@ static void SuspendOtherThreads() {
             if (entry.th32OwnerProcessID == GetCurrentProcessId() &&
                 entry.th32ThreadID != GetCurrentThreadId()) {
 
-                auto thread = OpenThread(THREAD_SUSPEND_RESUME, false,
-                                         entry.th32ThreadID);
+                auto thread = OpenThread(THREAD_SUSPEND_RESUME, false, entry.th32ThreadID);
 
                 if (thread) {
                     SuspendThread(thread);
@@ -40,14 +66,14 @@ static std::string GetPrettyPointer(long ptr) {
     char buffer[MAX_PATH] = {0};
 
     void *base;
-    if (RtlPcToFileHeader(reinterpret_cast<void *>(ptr), &base)) {
+    if (GetImageBase(reinterpret_cast<void *>(ptr), &base)) {
         wchar_t fileName[MAX_PATH];
 
-        if (GetModuleBaseName(GetCurrentProcess(), static_cast<HMODULE>(base),
-                              fileName, ARRAYSIZE(fileName) - 1)) {
+        if (GetModuleBaseName(GetCurrentProcess(), static_cast<HMODULE>(base), fileName,
+                              ARRAYSIZE(fileName) - 1)) {
 
-            sprintf_s(buffer, sizeof(buffer) - 1, "0x%08X (%ws+0x%X)", ptr,
-                      fileName, ptr - reinterpret_cast<long>(base));
+            sprintf_s(buffer, sizeof(buffer) - 1, "0x%08X (%ws+0x%X)", ptr, fileName,
+                      ptr - reinterpret_cast<long>(base));
 
             return buffer;
         }
@@ -76,12 +102,12 @@ static long WINAPI ExceptionHandler(EXCEPTION_POINTERS *exception) {
            exception->ExceptionRecord->ExceptionCode);
 
     printf("Context:\n");
-    printf("\tEAX=0x%08X ECX=0x%08X EDX=0x%08X EBX=0x%08X\n",
-           exception->ContextRecord->Eax, exception->ContextRecord->Ecx,
-           exception->ContextRecord->Edx, exception->ContextRecord->Ebx);
-    printf("\tESI=0x%08X EDI=0x%08X EBP=0x%08X ESP=0x%08X\n\n",
-           exception->ContextRecord->Esi, exception->ContextRecord->Edi,
-           exception->ContextRecord->Ebp, exception->ContextRecord->Esp);
+    printf("\tEAX=0x%08X ECX=0x%08X EDX=0x%08X EBX=0x%08X\n", exception->ContextRecord->Eax,
+           exception->ContextRecord->Ecx, exception->ContextRecord->Edx,
+           exception->ContextRecord->Ebx);
+    printf("\tESI=0x%08X EDI=0x%08X EBP=0x%08X ESP=0x%08X\n\n", exception->ContextRecord->Esi,
+           exception->ContextRecord->Edi, exception->ContextRecord->Ebp,
+           exception->ContextRecord->Esp);
 
     printf("Stack trace:\n");
     auto esp = (exception->ContextRecord->Esp / sizeof(DWORD)) * sizeof(DWORD);
@@ -89,14 +115,13 @@ static long WINAPI ExceptionHandler(EXCEPTION_POINTERS *exception) {
         long ptr = 0;
 
         // Safe read without SEH
-        if (!ReadProcessMemory(GetCurrentProcess(),
-                               reinterpret_cast<void *>(esp), &ptr, sizeof(ptr),
-                               nullptr)) {
+        if (!ReadProcessMemory(GetCurrentProcess(), reinterpret_cast<void *>(esp), &ptr,
+                               sizeof(ptr), nullptr)) {
             break;
         }
 
         void *base;
-        if (RtlPcToFileHeader(reinterpret_cast<void *>(ptr), &base)) {
+        if (GetImageBase(reinterpret_cast<void *>(ptr), &base)) {
             printf("\t%s\n", GetPrettyPointer(ptr).c_str());
         }
 
@@ -125,9 +150,8 @@ static void *SetUnhandledExceptionFilterHook(void *callback) {
 
 void Debug::Initialize() {
     // Prevent our exception handler from being overwritten
-    Hook::TrampolineHook(
-        SetUnhandledExceptionFilterHook, SetUnhandledExceptionFilter,
-        reinterpret_cast<void **>(&SetUnhandledExceptionFilterOriginal));
+    Hook::TrampolineHook(SetUnhandledExceptionFilterHook, SetUnhandledExceptionFilter,
+                         reinterpret_cast<void **>(&SetUnhandledExceptionFilterOriginal));
 
     SetUnhandledExceptionFilter(ExceptionHandler);
 
